@@ -338,7 +338,12 @@ pub fn lexer(query: String) -> Result<Vec<Token>, SyntaxError> {
                 column += 1;
                 position += 1;
             }
-            None => panic!("Unexpected end of query string"),
+            None => {
+                return Err(SyntaxError {
+                    message: String::from("Unexpected end of query string"),
+                    position,
+                })
+            }
             _ => {
                 // TODO: throw an error, this should never happen
                 chars.next();
