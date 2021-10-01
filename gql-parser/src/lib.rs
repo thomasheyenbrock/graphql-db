@@ -1,3 +1,5 @@
+use std::fmt;
+
 #[derive(Debug)]
 pub struct SyntaxError {
     pub message: String,
@@ -33,6 +35,19 @@ pub enum TokenKind {
     Int { value: String },
     Float { value: String },
     String { value: String },
+}
+
+impl fmt::Display for TokenKind {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            TokenKind::Comment { .. } => write!(f, "Comment"),
+            TokenKind::Name { .. } => write!(f, "Name"),
+            TokenKind::Int { .. } => write!(f, "Int"),
+            TokenKind::Float { .. } => write!(f, "Float"),
+            TokenKind::String { .. } => write!(f, "String"),
+            _ => write!(f, "{:?}", self),
+        }
+    }
 }
 
 #[derive(Debug)]
