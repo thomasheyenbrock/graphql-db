@@ -223,10 +223,9 @@ pub fn lexer(query: String) -> Result<Vec<Token>, SyntaxError> {
 
                 // Check that the next two chars are also dots
                 for _ in 0..2 {
-                    let next = chars.next();
-                    if next != Some('.') {
+                    if chars.next() != Some('.') {
                         return Err(SyntaxError {
-                            message: format!("Expected '.' but got {}", next.unwrap()),
+                            message: String::from("Cannot parse the unexpected character '.'"),
                             position,
                         });
                     }
@@ -415,7 +414,10 @@ pub fn lexer(query: String) -> Result<Vec<Token>, SyntaxError> {
                             next.push(chars.next().unwrap());
                         }
                         return Err(SyntaxError {
-                            message: format!("Expected a digit but got {}", next),
+                            message: format!(
+                                "Invalid number, expected a digit but got: '{}'",
+                                next
+                            ),
                             position,
                         });
                     }
@@ -450,7 +452,10 @@ pub fn lexer(query: String) -> Result<Vec<Token>, SyntaxError> {
                             next.push(chars.next().unwrap());
                         }
                         return Err(SyntaxError {
-                            message: format!("Expected a digit but got {}", next),
+                            message: format!(
+                                "Invalid number, expected a digit but got: '{}'",
+                                next
+                            ),
                             position,
                         });
                     }
@@ -463,7 +468,10 @@ pub fn lexer(query: String) -> Result<Vec<Token>, SyntaxError> {
                     || chars.peek() == Some(&'.')
                 {
                     return Err(SyntaxError {
-                        message: format!("Unexpected character {}", chars.next().unwrap()),
+                        message: format!(
+                            "Invalid number, expected digit but got: '{}'",
+                            chars.next().unwrap()
+                        ),
                         position,
                     });
                 }
@@ -701,11 +709,11 @@ pub fn lexer(query: String) -> Result<Vec<Token>, SyntaxError> {
                     position,
                 })
             }
-            _ => {
-                // TODO: throw an error, this should never happen
-                chars.next();
-                position += 1;
-                column += 1;
+            character => {
+                return Err(SyntaxError {
+                    message: format!("Unexpected character {}", character.unwrap()),
+                    position,
+                })
             }
         }
     }
