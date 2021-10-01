@@ -366,6 +366,134 @@ pub fn lexer(query: String) -> Result<Vec<Token>, SyntaxError> {
                     column: start_column,
                 })
             }
+            // Int or Float token
+            Some(&'-') | Some(&('0'..='9')) => {
+                let start = position;
+                let start_column = column;
+
+                let mut integer_part = String::from("");
+
+                // Optional negative sign
+                if chars.peek() == Some(&'-') {
+                    integer_part.push(chars.next().unwrap());
+                    column += 1;
+                    position += 1;
+                }
+
+                // Leading zeros are not allowed, so if it's a zero it's the
+                // only character of the IntergerPart
+                if chars.peek() == Some(&'0') {
+                    integer_part.push(chars.next().unwrap());
+                    column += 1;
+                    position += 1;
+                } else {
+                    while (Some(&'0')..=Some(&'9')).contains(&chars.peek()) {
+                        integer_part.push(chars.next().unwrap());
+                        column += 1;
+                        position += 1;
+                    }
+                }
+
+                let mut fractional_part = String::from("");
+                if chars.peek() == Some(&'.') {
+                    fractional_part.push(chars.next().unwrap());
+                    column += 1;
+                    position += 1;
+
+                    // Append all the following digits
+                    while (Some(&'0')..=Some(&'9')).contains(&chars.peek()) {
+                        fractional_part.push(chars.next().unwrap());
+                        column += 1;
+                        position += 1;
+                    }
+
+                    if fractional_part == "." {
+                        let mut next = String::from("");
+                        if chars.peek() == None {
+                            next.push_str("end of file");
+                        } else {
+                            next.push(chars.next().unwrap());
+                        }
+                        return Err(SyntaxError {
+                            message: format!("Expected a digit but got {}", next),
+                            position,
+                        });
+                    }
+                }
+
+                let mut exponent_part = String::from("");
+                if chars.peek() == Some(&'e') || chars.peek() == Some(&'E') {
+                    // ExponentIndicator
+                    exponent_part.push(chars.next().unwrap());
+                    column += 1;
+                    position += 1;
+
+                    // Optional sign
+                    if chars.peek() == Some(&'+') || chars.peek() == Some(&'+') {
+                        exponent_part.push(chars.next().unwrap());
+                        column += 1;
+                        position += 1;
+                    }
+
+                    // Append all the following digits
+                    while (Some(&'0')..=Some(&'9')).contains(&chars.peek()) {
+                        exponent_part.push(chars.next().unwrap());
+                        column += 1;
+                        position += 1;
+                    }
+
+                    if exponent_part == "." || exponent_part == ".+" || exponent_part == ".-" {
+                        let mut next = String::from("");
+                        if chars.peek() == None {
+                            next.push_str("end of file");
+                        } else {
+                            next.push(chars.next().unwrap());
+                        }
+                        return Err(SyntaxError {
+                            message: format!("Expected a digit but got {}", next),
+                            position,
+                        });
+                    }
+                }
+
+                if (Some(&'0')..=Some(&'9')).contains(&chars.peek())
+                    || (Some(&'a')..=Some(&'z')).contains(&chars.peek())
+                    || (Some(&'A')..=Some(&'Z')).contains(&chars.peek())
+                    || chars.peek() == Some(&'_')
+                    || chars.peek() == Some(&'.')
+                {
+                    return Err(SyntaxError {
+                        message: format!("Unexpected character {}", chars.next().unwrap()),
+                        position,
+                    });
+                }
+
+                if fractional_part == "" && exponent_part == "" {
+                    // It's an integer
+                    token_list.push(Token {
+                        kind: TokenKind::Int {
+                            value: integer_part,
+                        },
+                        start,
+                        end: position,
+                        line,
+                        column: start_column,
+                    })
+                } else {
+                    // It's a float
+                    let mut value = String::from("");
+                    value.push_str(&integer_part);
+                    value.push_str(&fractional_part);
+                    value.push_str(&exponent_part);
+                    token_list.push(Token {
+                        kind: TokenKind::Float { value },
+                        start,
+                        end: position,
+                        line,
+                        column: start_column,
+                    })
+                }
+            }
             None => {
                 return Err(SyntaxError {
                     message: String::from("Unexpected end of query string"),
