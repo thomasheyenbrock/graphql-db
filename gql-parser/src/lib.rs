@@ -338,6 +338,34 @@ pub fn lexer(query: String) -> Result<Vec<Token>, SyntaxError> {
                 column += 1;
                 position += 1;
             }
+            // Name token
+            Some(&('A'..='Z')) | Some(&('a'..='z')) | Some(&'_') => {
+                let start = position;
+                let start_column = column;
+
+                let mut value = String::from("");
+                value.push(chars.next().unwrap());
+                column += 1;
+                position += 1;
+
+                while (Some(&'A')..=Some(&'Z')).contains(&chars.peek())
+                    || (Some(&'a')..=Some(&'z')).contains(&chars.peek())
+                    || (Some(&'0')..=Some(&'9')).contains(&chars.peek())
+                    || chars.peek() == Some(&'_')
+                {
+                    value.push(chars.next().unwrap());
+                    column += 1;
+                    position += 1;
+                }
+
+                token_list.push(Token {
+                    kind: TokenKind::Name { value },
+                    start,
+                    end: position,
+                    line,
+                    column: start_column,
+                })
+            }
             None => {
                 return Err(SyntaxError {
                     message: String::from("Unexpected end of query string"),
