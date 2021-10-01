@@ -80,6 +80,8 @@ query,IgnoredTokens,{myField, ,,(myArg: 	 ,
     # prettier-ignore
     stringArg: """"""
     # prettier-ignore
+    stringArg: """\""""""
+    # prettier-ignore
     stringArg: """string"value"""
     # prettier-ignore
     stringArg: """string\"""value"""

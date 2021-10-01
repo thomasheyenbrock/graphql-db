@@ -494,6 +494,207 @@ pub fn lexer(query: String) -> Result<Vec<Token>, SyntaxError> {
                     })
                 }
             }
+            // String token
+            Some(&'"') => {
+                let start = position;
+                let start_line = line;
+                let start_column = column;
+
+                chars.next();
+                position += 1;
+                column += 1;
+
+                if chars.peek() == Some(&'"') {
+                    chars.next();
+                    position += 1;
+                    column += 1;
+
+                    if chars.peek() == Some(&'"') {
+                        // Block string
+                        chars.next();
+                        position += 1;
+                        column += 1;
+
+                        let mut value = String::from("");
+                        let mut is_done = false;
+                        let mut passes = 0;
+                        while !is_done {
+                            let next = chars.next();
+
+                            if next == None {
+                                return Err(SyntaxError {
+                                    message: String::from("Unterminated string"),
+                                    position,
+                                });
+                            }
+
+                            if next == Some('\r') {
+                                line += 1;
+                            }
+                            if next == Some('\n') && value.chars().last() != Some('\r') {
+                                line += 1;
+                            }
+
+                            value.push(next.unwrap());
+                            position += 1;
+                            column += 1;
+                            if passes > 0 {
+                                passes -= 1
+                            };
+
+                            is_done = value.len() >= 3
+                                && value[value.len() - 3..] == String::from("\"\"\"")
+                                && passes == 0;
+
+                            if value.len() >= 4
+                                && value[value.len() - 4..] == String::from("\\\"\"\"")
+                            {
+                                is_done = false;
+                                passes = 3;
+                                value = value[..value.len() - 4].to_string();
+                                value.push_str("\"\"\"");
+                            }
+                        }
+
+                        if value.len() < 3 || value[value.len() - 3..] != String::from("\"\"\"") {
+                            return Err(SyntaxError {
+                                message: String::from("Unterminated string"),
+                                position,
+                            });
+                        }
+
+                        token_list.push(Token {
+                            kind: TokenKind::String { value },
+                            start,
+                            end: position,
+                            line: start_line,
+                            column: start_column,
+                        })
+                    } else {
+                        // Empty string
+                        token_list.push(Token {
+                            kind: TokenKind::String {
+                                value: String::from(""),
+                            },
+                            start,
+                            end: position,
+                            line,
+                            column: start_column,
+                        })
+                    }
+                } else {
+                    // Non-empty non-block stirng
+                    let mut value = String::from("");
+
+                    while chars.peek() != Some(&'"') && chars.peek() != None {
+                        let next = chars.next().unwrap();
+                        position += 1;
+                        column += 1;
+
+                        if next == '\\' {
+                            // Escaped characters & unicode
+                            match chars.next() {
+                                character
+                                @
+                                (Some('"') | Some('\\') | Some('/') | Some('b')
+                                | Some('f') | Some('n') | Some('r') | Some('t')) => {
+                                    value.push(character.unwrap())
+                                }
+                                Some('u') => {
+                                    // The next 4 characters define the unicode sequence
+                                    let mut unicode = String::from("");
+                                    for _ in 0..4 {
+                                        let unicode_char = chars.next();
+                                        position += 1;
+                                        column += 1;
+
+                                        if unicode_char == None {
+                                            return Err(SyntaxError {
+                                                message: format!(
+                                                    "Invalid character escape sequence: \\u{}",
+                                                    unicode
+                                                ),
+                                                position,
+                                            });
+                                        }
+
+                                        unicode.push(unicode_char.unwrap());
+                                    }
+
+                                    match u32::from_str_radix(&unicode, 16) {
+                                        Ok(unicode_int) => {
+                                            let unicode_char = char::from_u32(unicode_int);
+                                            if unicode_char == None {
+                                                return Err(SyntaxError {
+                                                    message: format!(
+                                                        "Invalid character escape sequence: \\u{}",
+                                                        unicode
+                                                    ),
+                                                    position,
+                                                });
+                                            }
+                                            value.push(unicode_char.unwrap());
+                                        }
+                                        Err(_) => {
+                                            return Err(SyntaxError {
+                                                message: format!(
+                                                    "Invalid character escape sequence: \\u{}",
+                                                    unicode
+                                                ),
+                                                position,
+                                            });
+                                        }
+                                    }
+                                }
+                                character => {
+                                    return Err(SyntaxError {
+                                        message: format!(
+                                            "Invalid character escape sequence: \\{}",
+                                            if character == None {
+                                                String::from("")
+                                            } else {
+                                                character.unwrap().to_string()
+                                            }
+                                        ),
+                                        position,
+                                    });
+                                }
+                            }
+                            position += 1;
+                            column += 1;
+                        } else if next == '\n' || next == '\r' {
+                            // Line feed & carriage return
+                            return Err(SyntaxError {
+                                message: String::from("Unterminated string"),
+                                position,
+                            });
+                        } else {
+                            // Source character
+                            value.push(next);
+                        }
+                    }
+
+                    if chars.peek() == None {
+                        return Err(SyntaxError {
+                            message: String::from("Unterminated string"),
+                            position,
+                        });
+                    }
+
+                    // Remove closing quote
+                    chars.next();
+                    position += 1;
+                    column += 1;
+
+                    token_list.push(Token {
+                        kind: TokenKind::String { value },
+                        start,
+                        end: position,
+                        line,
+                        column: start_column,
+                    })
+                }
+            }
             None => {
                 return Err(SyntaxError {
                     message: String::from("Unexpected end of query string"),
