@@ -5,13 +5,13 @@ pub struct SyntaxError {
 }
 
 #[derive(Debug)]
-enum TokenKind {
+pub enum TokenKind {
     // Start end end of file
     SOF,
     EOF,
 
     // Ignored token kinds
-    Comment,
+    Comment { value: String },
 
     // Lexical token kinds
     ExclamationMark,
@@ -29,20 +29,19 @@ enum TokenKind {
     VerticalBar,
     CurlyBracketClosing,
 
-    Name,
-    IntToken,
-    FloatToken,
-    StringToken,
+    Name { value: String },
+    Int { value: String },
+    Float { value: String },
+    String { value: String },
 }
 
 #[derive(Debug)]
 pub struct Token {
-    kind: TokenKind,
-    value: String,
-    start: i32,
-    end: i32,
-    line: i32,
-    column: i32,
+    pub kind: TokenKind,
+    pub start: i32,
+    pub end: i32,
+    pub line: i32,
+    pub column: i32,
 }
 
 pub fn lexer(query: String) -> Result<Vec<Token>, SyntaxError> {
@@ -53,7 +52,6 @@ pub fn lexer(query: String) -> Result<Vec<Token>, SyntaxError> {
     let mut token_list: Vec<Token> = Vec::new();
     token_list.push(Token {
         kind: TokenKind::SOF,
-        value: String::from(""),
         start: position,
         end: position,
         line,
@@ -107,14 +105,8 @@ pub fn lexer(query: String) -> Result<Vec<Token>, SyntaxError> {
             // readable information, we append a token to the list where the
             // value contains the list of comment chars.
             Some(&'#') => {
-                let mut comment_token = Token {
-                    kind: TokenKind::Comment,
-                    value: String::from(""),
-                    start: position,
-                    end: position,
-                    line,
-                    column,
-                };
+                let start = position;
+                let start_column = column;
 
                 // Skip the '#' character
                 chars.next();
@@ -124,23 +116,29 @@ pub fn lexer(query: String) -> Result<Vec<Token>, SyntaxError> {
                 // Combine all following characters to get the value of the
                 // comment token until a line feed, carriage return, of the
                 // end of file is reached.
+                let mut value = String::from("");
                 while (chars.peek() != Some(&'\u{a}'))
                     && (chars.peek() != Some(&'\u{d}') && (chars.peek() != None))
                 {
-                    comment_token.value.push(chars.next().unwrap());
+                    value.push(chars.next().unwrap());
                     column += 1;
                     position += 1;
                 }
 
-                comment_token.end = position;
-                token_list.push(comment_token)
+                let comment_token = Token {
+                    kind: TokenKind::Comment { value },
+                    start,
+                    end: position,
+                    line,
+                    column: start_column,
+                };
+                token_list.push(comment_token);
             }
             // Punctuators
             Some(&'!') => {
                 chars.next();
                 token_list.push(Token {
                     kind: TokenKind::ExclamationMark,
-                    value: String::from(""),
                     start: position,
                     end: position + 1,
                     line,
@@ -153,7 +151,6 @@ pub fn lexer(query: String) -> Result<Vec<Token>, SyntaxError> {
                 chars.next();
                 token_list.push(Token {
                     kind: TokenKind::DollarSign,
-                    value: String::from(""),
                     start: position,
                     end: position + 1,
                     line,
@@ -166,7 +163,6 @@ pub fn lexer(query: String) -> Result<Vec<Token>, SyntaxError> {
                 chars.next();
                 token_list.push(Token {
                     kind: TokenKind::Ampersand,
-                    value: String::from(""),
                     start: position,
                     end: position + 1,
                     line,
@@ -179,7 +175,6 @@ pub fn lexer(query: String) -> Result<Vec<Token>, SyntaxError> {
                 chars.next();
                 token_list.push(Token {
                     kind: TokenKind::RoundBracketOpening,
-                    value: String::from(""),
                     start: position,
                     end: position + 1,
                     line,
@@ -192,7 +187,6 @@ pub fn lexer(query: String) -> Result<Vec<Token>, SyntaxError> {
                 chars.next();
                 token_list.push(Token {
                     kind: TokenKind::RoundBracketClosing,
-                    value: String::from(""),
                     start: position,
                     end: position + 1,
                     line,
@@ -227,7 +221,6 @@ pub fn lexer(query: String) -> Result<Vec<Token>, SyntaxError> {
 
                 token_list.push(Token {
                     kind: TokenKind::Spread,
-                    value: String::from(""),
                     start: position - 3,
                     end: position,
                     line,
@@ -238,7 +231,6 @@ pub fn lexer(query: String) -> Result<Vec<Token>, SyntaxError> {
                 chars.next();
                 token_list.push(Token {
                     kind: TokenKind::Colon,
-                    value: String::from(""),
                     start: position,
                     end: position + 1,
                     line,
@@ -251,7 +243,6 @@ pub fn lexer(query: String) -> Result<Vec<Token>, SyntaxError> {
                 chars.next();
                 token_list.push(Token {
                     kind: TokenKind::EqualsSign,
-                    value: String::from(""),
                     start: position,
                     end: position + 1,
                     line,
@@ -264,7 +255,6 @@ pub fn lexer(query: String) -> Result<Vec<Token>, SyntaxError> {
                 chars.next();
                 token_list.push(Token {
                     kind: TokenKind::AtSign,
-                    value: String::from(""),
                     start: position,
                     end: position + 1,
                     line,
@@ -277,7 +267,6 @@ pub fn lexer(query: String) -> Result<Vec<Token>, SyntaxError> {
                 chars.next();
                 token_list.push(Token {
                     kind: TokenKind::SquareBracketOpening,
-                    value: String::from(""),
                     start: position,
                     end: position + 1,
                     line,
@@ -290,7 +279,6 @@ pub fn lexer(query: String) -> Result<Vec<Token>, SyntaxError> {
                 chars.next();
                 token_list.push(Token {
                     kind: TokenKind::SquareBracketClosing,
-                    value: String::from(""),
                     start: position,
                     end: position + 1,
                     line,
@@ -303,7 +291,6 @@ pub fn lexer(query: String) -> Result<Vec<Token>, SyntaxError> {
                 chars.next();
                 token_list.push(Token {
                     kind: TokenKind::CurlyBracketOpening,
-                    value: String::from(""),
                     start: position,
                     end: position + 1,
                     line,
@@ -316,7 +303,6 @@ pub fn lexer(query: String) -> Result<Vec<Token>, SyntaxError> {
                 chars.next();
                 token_list.push(Token {
                     kind: TokenKind::VerticalBar,
-                    value: String::from(""),
                     start: position,
                     end: position + 1,
                     line,
@@ -329,7 +315,6 @@ pub fn lexer(query: String) -> Result<Vec<Token>, SyntaxError> {
                 chars.next();
                 token_list.push(Token {
                     kind: TokenKind::CurlyBracketClosing,
-                    value: String::from(""),
                     start: position,
                     end: position + 1,
                     line,
@@ -350,7 +335,6 @@ pub fn lexer(query: String) -> Result<Vec<Token>, SyntaxError> {
 
     token_list.push(Token {
         kind: TokenKind::EOF,
-        value: String::from(""),
         start: position,
         end: position,
         line,
