@@ -80,6 +80,12 @@ impl Lexer<'_> {
         }
     }
 
+    fn next_char(&mut self) -> Option<char> {
+        self.position += 1;
+        self.column += 1;
+        return self.chars.next();
+    }
+
     fn next_no_error(&mut self) -> Result<Option<Token>, String> {
         if self.line == 0 {
             let sof = Token {
@@ -102,9 +108,7 @@ impl Lexer<'_> {
             || self.chars.peek() == Some(&'\n') // Line feed & carriage return
             || self.chars.peek() == Some(&'\r')
         {
-            let next = self.chars.next();
-            self.column += 1;
-            self.position += 1;
+            let next = self.next_char();
 
             if next == Some('\n') || (next == Some('\r') && self.chars.peek() != Some(&'\n')) {
                 self.line += 1;
@@ -134,7 +138,6 @@ impl Lexer<'_> {
             Some(&('\u{0}'..='\u{8}'))
             | Some(&('\u{b}'..='\u{c}'))
             | Some(&('\u{e}'..='\u{1f}')) => {
-                self.chars.next();
                 return Err(String::from("Not a valid source character"));
             }
             // A comment is an ignored token, but since it does contain human
@@ -145,9 +148,7 @@ impl Lexer<'_> {
                 let start_column = self.column;
 
                 // Skip the '#' character
-                self.chars.next();
-                self.column += 1;
-                self.position += 1;
+                self.next_char();
 
                 // Combine all following characters to get the value of the
                 // comment token until a line feed, carriage return, of the
@@ -156,9 +157,7 @@ impl Lexer<'_> {
                 while (self.chars.peek() != Some(&'\u{a}'))
                     && (self.chars.peek() != Some(&'\u{d}') && (self.chars.peek() != None))
                 {
-                    value.push(self.chars.next().unwrap());
-                    self.column += 1;
-                    self.position += 1;
+                    value.push(self.next_char().unwrap());
                 }
 
                 let comment_token = Token {
@@ -172,7 +171,6 @@ impl Lexer<'_> {
             }
             // Punctuators
             Some(&'!') => {
-                self.chars.next();
                 let exclamation_mark_token = Token {
                     kind: TokenKind::ExclamationMark,
                     start: self.position,
@@ -180,12 +178,10 @@ impl Lexer<'_> {
                     line: self.line,
                     column: self.column,
                 };
-                self.column += 1;
-                self.position += 1;
+                self.next_char();
                 return Ok(Some(exclamation_mark_token));
             }
             Some(&'$') => {
-                self.chars.next();
                 let dollar_token = Token {
                     kind: TokenKind::DollarSign,
                     start: self.position,
@@ -193,12 +189,10 @@ impl Lexer<'_> {
                     line: self.line,
                     column: self.column,
                 };
-                self.column += 1;
-                self.position += 1;
+                self.next_char();
                 return Ok(Some(dollar_token));
             }
             Some(&'&') => {
-                self.chars.next();
                 let ampersand_token = Token {
                     kind: TokenKind::Ampersand,
                     start: self.position,
@@ -206,12 +200,10 @@ impl Lexer<'_> {
                     line: self.line,
                     column: self.column,
                 };
-                self.column += 1;
-                self.position += 1;
+                self.next_char();
                 return Ok(Some(ampersand_token));
             }
             Some(&'(') => {
-                self.chars.next();
                 let round_bracket_opening_token = Token {
                     kind: TokenKind::RoundBracketOpening,
                     start: self.position,
@@ -219,12 +211,10 @@ impl Lexer<'_> {
                     line: self.line,
                     column: self.column,
                 };
-                self.column += 1;
-                self.position += 1;
+                self.next_char();
                 return Ok(Some(round_bracket_opening_token));
             }
             Some(&')') => {
-                self.chars.next();
                 let round_bracket_closing_token = Token {
                     kind: TokenKind::RoundBracketClosing,
                     start: self.position,
@@ -232,8 +222,7 @@ impl Lexer<'_> {
                     line: self.line,
                     column: self.column,
                 };
-                self.column += 1;
-                self.position += 1;
+                self.next_char();
                 return Ok(Some(round_bracket_closing_token));
             }
             Some(&'.') => {
@@ -243,17 +232,14 @@ impl Lexer<'_> {
                 // value, both are handled separately.)
 
                 // Skip the first dot
-                self.chars.next();
-                self.column += 1;
-                self.position += 1;
+                self.next_char();
 
                 // Check that the next two chars are also dots
                 for _ in 0..2 {
-                    if self.chars.next() != Some('.') {
+                    if self.chars.peek() != Some(&'.') {
                         return Err(String::from("Cannot parse the unexpected character '.'"));
                     }
-                    self.column += 1;
-                    self.position += 1;
+                    self.next_char();
                 }
 
                 let spread_token = Token {
@@ -266,7 +252,6 @@ impl Lexer<'_> {
                 return Ok(Some(spread_token));
             }
             Some(&':') => {
-                self.chars.next();
                 let colon_token = Token {
                     kind: TokenKind::Colon,
                     start: self.position,
@@ -274,12 +259,10 @@ impl Lexer<'_> {
                     line: self.line,
                     column: self.column,
                 };
-                self.column += 1;
-                self.position += 1;
+                self.next_char();
                 return Ok(Some(colon_token));
             }
             Some(&'=') => {
-                self.chars.next();
                 let equals_sign_token = Token {
                     kind: TokenKind::EqualsSign,
                     start: self.position,
@@ -287,12 +270,10 @@ impl Lexer<'_> {
                     line: self.line,
                     column: self.column,
                 };
-                self.column += 1;
-                self.position += 1;
+                self.next_char();
                 return Ok(Some(equals_sign_token));
             }
             Some(&'@') => {
-                self.chars.next();
                 let at_sign_token = Token {
                     kind: TokenKind::AtSign,
                     start: self.position,
@@ -300,12 +281,10 @@ impl Lexer<'_> {
                     line: self.line,
                     column: self.column,
                 };
-                self.column += 1;
-                self.position += 1;
+                self.next_char();
                 return Ok(Some(at_sign_token));
             }
             Some(&'[') => {
-                self.chars.next();
                 let square_bracket_opening_token = Token {
                     kind: TokenKind::SquareBracketOpening,
                     start: self.position,
@@ -313,12 +292,10 @@ impl Lexer<'_> {
                     line: self.line,
                     column: self.column,
                 };
-                self.column += 1;
-                self.position += 1;
+                self.next_char();
                 return Ok(Some(square_bracket_opening_token));
             }
             Some(&']') => {
-                self.chars.next();
                 let square_bracket_closing_token = Token {
                     kind: TokenKind::SquareBracketClosing,
                     start: self.position,
@@ -326,12 +303,10 @@ impl Lexer<'_> {
                     line: self.line,
                     column: self.column,
                 };
-                self.column += 1;
-                self.position += 1;
+                self.next_char();
                 return Ok(Some(square_bracket_closing_token));
             }
             Some(&'{') => {
-                self.chars.next();
                 let curly_bracket_opening_token = Token {
                     kind: TokenKind::CurlyBracketOpening,
                     start: self.position,
@@ -339,12 +314,10 @@ impl Lexer<'_> {
                     line: self.line,
                     column: self.column,
                 };
-                self.column += 1;
-                self.position += 1;
+                self.next_char();
                 return Ok(Some(curly_bracket_opening_token));
             }
             Some(&'|') => {
-                self.chars.next();
                 let vertical_bar_token = Token {
                     kind: TokenKind::VerticalBar,
                     start: self.position,
@@ -352,12 +325,10 @@ impl Lexer<'_> {
                     line: self.line,
                     column: self.column,
                 };
-                self.column += 1;
-                self.position += 1;
+                self.next_char();
                 return Ok(Some(vertical_bar_token));
             }
             Some(&'}') => {
-                self.chars.next();
                 let curly_bracket_closing_token = Token {
                     kind: TokenKind::CurlyBracketClosing,
                     start: self.position,
@@ -365,8 +336,7 @@ impl Lexer<'_> {
                     line: self.line,
                     column: self.column,
                 };
-                self.column += 1;
-                self.position += 1;
+                self.next_char();
                 return Ok(Some(curly_bracket_closing_token));
             }
             // Name token
@@ -375,18 +345,14 @@ impl Lexer<'_> {
                 let start_column = self.column;
 
                 let mut value = String::from("");
-                value.push(self.chars.next().unwrap());
-                self.column += 1;
-                self.position += 1;
+                value.push(self.next_char().unwrap());
 
                 while (Some(&'A')..=Some(&'Z')).contains(&self.chars.peek())
                     || (Some(&'a')..=Some(&'z')).contains(&self.chars.peek())
                     || (Some(&'0')..=Some(&'9')).contains(&self.chars.peek())
                     || self.chars.peek() == Some(&'_')
                 {
-                    value.push(self.chars.next().unwrap());
-                    self.column += 1;
-                    self.position += 1;
+                    value.push(self.next_char().unwrap());
                 }
 
                 return Ok(Some(Token {
@@ -406,48 +372,36 @@ impl Lexer<'_> {
 
                 // Optional negative sign
                 if self.chars.peek() == Some(&'-') {
-                    integer_part.push(self.chars.next().unwrap());
-                    self.column += 1;
-                    self.position += 1;
+                    integer_part.push(self.next_char().unwrap());
                 }
 
                 // Leading zeros are not allowed, so if it's a zero it's the
                 // only character of the IntergerPart
                 if self.chars.peek() == Some(&'0') {
-                    integer_part.push(self.chars.next().unwrap());
-                    self.column += 1;
-                    self.position += 1;
+                    integer_part.push(self.next_char().unwrap());
                 } else {
                     while (Some(&'0')..=Some(&'9')).contains(&self.chars.peek()) {
-                        integer_part.push(self.chars.next().unwrap());
-                        self.column += 1;
-                        self.position += 1;
+                        integer_part.push(self.next_char().unwrap());
                     }
                 }
 
                 let mut fractional_part = String::from("");
                 if self.chars.peek() == Some(&'.') {
-                    fractional_part.push(self.chars.next().unwrap());
-                    self.column += 1;
-                    self.position += 1;
+                    fractional_part.push(self.next_char().unwrap());
 
                     // Append all the following digits
                     while (Some(&'0')..=Some(&'9')).contains(&self.chars.peek()) {
-                        fractional_part.push(self.chars.next().unwrap());
-                        self.column += 1;
-                        self.position += 1;
+                        fractional_part.push(self.next_char().unwrap());
                     }
 
                     if fractional_part == "." {
-                        let mut next = String::from("");
-                        if self.chars.peek() == None {
-                            next.push_str("end of file");
-                        } else {
-                            next.push(self.chars.next().unwrap());
-                        }
                         return Err(format!(
                             "Invalid number, expected a digit but got: '{}'",
-                            next
+                            if self.chars.peek() == None {
+                                String::from("end of file")
+                            } else {
+                                self.chars.peek().unwrap().to_string()
+                            }
                         ));
                     }
                 }
@@ -455,34 +409,26 @@ impl Lexer<'_> {
                 let mut exponent_part = String::from("");
                 if self.chars.peek() == Some(&'e') || self.chars.peek() == Some(&'E') {
                     // ExponentIndicator
-                    exponent_part.push(self.chars.next().unwrap());
-                    self.column += 1;
-                    self.position += 1;
+                    exponent_part.push(self.next_char().unwrap());
 
                     // Optional sign
                     if self.chars.peek() == Some(&'+') || self.chars.peek() == Some(&'+') {
-                        exponent_part.push(self.chars.next().unwrap());
-                        self.column += 1;
-                        self.position += 1;
+                        exponent_part.push(self.next_char().unwrap());
                     }
 
                     // Append all the following digits
                     while (Some(&'0')..=Some(&'9')).contains(&self.chars.peek()) {
-                        exponent_part.push(self.chars.next().unwrap());
-                        self.column += 1;
-                        self.position += 1;
+                        exponent_part.push(self.next_char().unwrap());
                     }
 
                     if exponent_part == "." || exponent_part == ".+" || exponent_part == ".-" {
-                        let mut next = String::from("");
-                        if self.chars.peek() == None {
-                            next.push_str("end of file");
-                        } else {
-                            next.push(self.chars.next().unwrap());
-                        }
                         return Err(format!(
                             "Invalid number, expected a digit but got: '{}'",
-                            next
+                            if self.chars.peek() == None {
+                                String::from("end of file")
+                            } else {
+                                self.chars.peek().unwrap().to_string()
+                            }
                         ));
                     }
                 }
@@ -495,7 +441,7 @@ impl Lexer<'_> {
                 {
                     return Err(format!(
                         "Invalid number, expected digit but got: '{}'",
-                        self.chars.next().unwrap()
+                        self.chars.peek().unwrap()
                     ));
                 }
 
@@ -531,41 +477,35 @@ impl Lexer<'_> {
                 let start_line = self.line;
                 let start_column = self.column;
 
-                self.chars.next();
-                self.position += 1;
-                self.column += 1;
+                self.next_char();
 
                 if self.chars.peek() == Some(&'"') {
-                    self.chars.next();
-                    self.position += 1;
-                    self.column += 1;
+                    self.next_char();
 
                     if self.chars.peek() == Some(&'"') {
                         // Block string
-                        self.chars.next();
-                        self.position += 1;
-                        self.column += 1;
+                        self.next_char();
 
                         let mut value = String::from("");
                         let mut is_done = false;
                         let mut passes = 0;
                         while !is_done {
-                            let next = self.chars.next();
-
-                            if next == None {
+                            if self.chars.peek() == None {
                                 return Err(String::from("Unterminated string"));
                             }
 
-                            if next == Some('\r') {
+                            let next = self.next_char().unwrap();
+                            value.push(next);
+
+                            if next == '\r' {
                                 self.line += 1;
+                                self.column = 1;
                             }
-                            if next == Some('\n') && value.chars().last() != Some('\r') {
+                            if next == '\n' && value.chars().last() != Some('\r') {
                                 self.line += 1;
+                                self.column = 1;
                             }
 
-                            value.push(next.unwrap());
-                            self.position += 1;
-                            self.column += 1;
                             if passes > 0 {
                                 passes -= 1
                             };
@@ -612,13 +552,11 @@ impl Lexer<'_> {
                     let mut value = String::from("");
 
                     while self.chars.peek() != Some(&'"') && self.chars.peek() != None {
-                        let next = self.chars.next().unwrap();
-                        self.position += 1;
-                        self.column += 1;
+                        let next = self.next_char().unwrap();
 
                         if next == '\\' {
                             // Escaped characters & unicode
-                            match self.chars.next() {
+                            match self.next_char() {
                                 character
                                 @
                                 (Some('"') | Some('\\') | Some('/') | Some('b')
@@ -628,12 +566,12 @@ impl Lexer<'_> {
                                 Some('u') => {
                                     // The next 4 characters define the unicode sequence
                                     let mut unicode = String::from("");
-                                    for _ in 0..4 {
-                                        let unicode_char = self.chars.next();
-                                        self.position += 1;
-                                        self.column += 1;
+                                    for i in 1..5 {
+                                        let unicode_char = self.next_char();
 
                                         if unicode_char == None {
+                                            self.position -= i + 2;
+                                            self.column -= i + 2;
                                             return Err(format!(
                                                 "Invalid character escape sequence: \\u{}",
                                                 unicode
@@ -647,6 +585,8 @@ impl Lexer<'_> {
                                         Ok(unicode_int) => {
                                             let unicode_char = char::from_u32(unicode_int);
                                             if unicode_char == None {
+                                                self.position -= 6;
+                                                self.column -= 6;
                                                 return Err(format!(
                                                     "Invalid character escape sequence: \\u{}",
                                                     unicode
@@ -655,6 +595,8 @@ impl Lexer<'_> {
                                             value.push(unicode_char.unwrap());
                                         }
                                         Err(_) => {
+                                            self.position -= 6;
+                                            self.column -= 6;
                                             return Err(format!(
                                                 "Invalid character escape sequence: \\u{}",
                                                 unicode
@@ -663,6 +605,8 @@ impl Lexer<'_> {
                                     }
                                 }
                                 character => {
+                                    self.position -= 2;
+                                    self.column -= 2;
                                     return Err(format!(
                                         "Invalid character escape sequence: \\{}",
                                         if character == None {
@@ -673,8 +617,6 @@ impl Lexer<'_> {
                                     ));
                                 }
                             }
-                            self.position += 1;
-                            self.column += 1;
                         } else if next == '\n' || next == '\r' {
                             // Line feed & carriage return
                             return Err(String::from("Unterminated string"));
@@ -689,9 +631,7 @@ impl Lexer<'_> {
                     }
 
                     // Remove closing quote
-                    self.chars.next();
-                    self.position += 1;
-                    self.column += 1;
+                    self.next_char();
 
                     return Ok(Some(Token {
                         kind: TokenKind::String { value },
