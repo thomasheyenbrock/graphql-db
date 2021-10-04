@@ -59,156 +59,182 @@ pub struct Token {
     pub column: i32,
 }
 
-pub fn lexer(query: String) -> Result<Vec<Token>, SyntaxError> {
-    let mut position = 0;
-    let mut line = 0;
-    let mut column = 0;
+pub struct Lexer<'a> {
+    chars: std::iter::Peekable<std::str::Chars<'a>>,
+    position: i32,
+    line: i32,
+    column: i32,
+    error: Option<String>,
+    is_done: bool,
+}
 
-    let mut token_list: Vec<Token> = Vec::new();
-    token_list.push(Token {
-        kind: TokenKind::SOF,
-        start: position,
-        end: position,
-        line,
-        column,
-    });
+impl Lexer<'_> {
+    pub fn new(query: &str) -> Lexer {
+        Lexer {
+            chars: query.chars().peekable(),
+            position: 0,
+            line: 0,
+            column: 0,
+            error: None,
+            is_done: false,
+        }
+    }
 
-    line += 1;
-    column += 1;
+    fn next_no_error(&mut self) -> Result<Option<Token>, String> {
+        if self.line == 0 {
+            let sof = Token {
+                kind: TokenKind::SOF,
+                start: self.position,
+                end: self.position,
+                line: self.line,
+                column: self.column,
+            };
+            self.line += 1;
+            self.column += 1;
+            return Ok(Some(sof));
+        }
 
-    let mut chars = query.chars().peekable();
-    while chars.peek() != None {
-        match chars.peek() {
+        // Skip ignores tokens
+        while self.chars.peek() == Some(&'\u{feff}') // UnicodeBOM
+            || self.chars.peek() == Some(&'\t') // Tab
+            || self.chars.peek() == Some(&' ') // Whitespace
+            || self.chars.peek() == Some(&',') // Comma
+            || self.chars.peek() == Some(&'\n') // Line feed & carriage return
+            || self.chars.peek() == Some(&'\r')
+        {
+            let next = self.chars.next();
+            self.column += 1;
+            self.position += 1;
+
+            if next == Some('\n') || (next == Some('\r') && self.chars.peek() != Some(&'\n')) {
+                self.line += 1;
+                self.column = 1;
+            }
+        }
+
+        if self.chars.peek() == None {
+            // Avoid returning EOF multiple times
+            if self.is_done {
+                return Ok(None);
+            } else {
+                self.is_done = true;
+                return Ok(Some(Token {
+                    kind: TokenKind::EOF,
+                    start: self.position,
+                    end: self.position,
+                    line: self.line,
+                    column: self.column,
+                }));
+            }
+        }
+
+        match self.chars.peek() {
             // ASCII controll characters are not valid source characters
             // (except for CHARACTER TABULATION, LINE FEED, and CARRIAGE RETURN)
             Some(&('\u{0}'..='\u{8}'))
             | Some(&('\u{b}'..='\u{c}'))
             | Some(&('\u{e}'..='\u{1f}')) => {
-                chars.next();
-                return Err(SyntaxError {
-                    message: String::from("Not a valid source character"),
-                    position,
-                });
-            }
-            // UnicodeBOM, Whitespace (space and tab), and commas are all ignored token
-            Some(&'\u{feff}') | Some(&'\u{9}') | Some(&' ') | Some(&',') => {
-                chars.next();
-                column += 1;
-                position += 1;
-            }
-            // Line feed is an ignored token
-            Some(&'\u{a}') => {
-                chars.next();
-                line += 1;
-                column = 1;
-                position += 1;
-            }
-            // Carriage return is an ignored token
-            Some(&'\u{d}') => {
-                chars.next();
-                line += 1;
-                column = 1;
-                position += 1;
-
-                // If a carriage return is followed by a line feed, both chars
-                // together are interpreted as one line break character.
-                if chars.peek() == Some(&'\u{a}') {
-                    chars.next();
-                }
+                self.chars.next();
+                return Err(String::from("Not a valid source character"));
             }
             // A comment is an ignored token, but since it does contain human
             // readable information, we append a token to the list where the
             // value contains the list of comment chars.
             Some(&'#') => {
-                let start = position;
-                let start_column = column;
+                let start = self.position;
+                let start_column = self.column;
 
                 // Skip the '#' character
-                chars.next();
-                column += 1;
-                position += 1;
+                self.chars.next();
+                self.column += 1;
+                self.position += 1;
 
                 // Combine all following characters to get the value of the
                 // comment token until a line feed, carriage return, of the
                 // end of file is reached.
                 let mut value = String::from("");
-                while (chars.peek() != Some(&'\u{a}'))
-                    && (chars.peek() != Some(&'\u{d}') && (chars.peek() != None))
+                while (self.chars.peek() != Some(&'\u{a}'))
+                    && (self.chars.peek() != Some(&'\u{d}') && (self.chars.peek() != None))
                 {
-                    value.push(chars.next().unwrap());
-                    column += 1;
-                    position += 1;
+                    value.push(self.chars.next().unwrap());
+                    self.column += 1;
+                    self.position += 1;
                 }
 
                 let comment_token = Token {
                     kind: TokenKind::Comment { value },
                     start,
-                    end: position,
-                    line,
+                    end: self.position,
+                    line: self.line,
                     column: start_column,
                 };
-                token_list.push(comment_token);
+                return Ok(Some(comment_token));
             }
             // Punctuators
             Some(&'!') => {
-                chars.next();
-                token_list.push(Token {
+                self.chars.next();
+                let exclamation_mark_token = Token {
                     kind: TokenKind::ExclamationMark,
-                    start: position,
-                    end: position + 1,
-                    line,
-                    column,
-                });
-                column += 1;
-                position += 1;
+                    start: self.position,
+                    end: self.position + 1,
+                    line: self.line,
+                    column: self.column,
+                };
+                self.column += 1;
+                self.position += 1;
+                return Ok(Some(exclamation_mark_token));
             }
             Some(&'$') => {
-                chars.next();
-                token_list.push(Token {
+                self.chars.next();
+                let dollar_token = Token {
                     kind: TokenKind::DollarSign,
-                    start: position,
-                    end: position + 1,
-                    line,
-                    column,
-                });
-                column += 1;
-                position += 1;
+                    start: self.position,
+                    end: self.position + 1,
+                    line: self.line,
+                    column: self.column,
+                };
+                self.column += 1;
+                self.position += 1;
+                return Ok(Some(dollar_token));
             }
             Some(&'&') => {
-                chars.next();
-                token_list.push(Token {
+                self.chars.next();
+                let ampersand_token = Token {
                     kind: TokenKind::Ampersand,
-                    start: position,
-                    end: position + 1,
-                    line,
-                    column,
-                });
-                column += 1;
-                position += 1;
+                    start: self.position,
+                    end: self.position + 1,
+                    line: self.line,
+                    column: self.column,
+                };
+                self.column += 1;
+                self.position += 1;
+                return Ok(Some(ampersand_token));
             }
             Some(&'(') => {
-                chars.next();
-                token_list.push(Token {
+                self.chars.next();
+                let round_bracket_opening_token = Token {
                     kind: TokenKind::RoundBracketOpening,
-                    start: position,
-                    end: position + 1,
-                    line,
-                    column,
-                });
-                column += 1;
-                position += 1;
+                    start: self.position,
+                    end: self.position + 1,
+                    line: self.line,
+                    column: self.column,
+                };
+                self.column += 1;
+                self.position += 1;
+                return Ok(Some(round_bracket_opening_token));
             }
             Some(&')') => {
-                chars.next();
-                token_list.push(Token {
+                self.chars.next();
+                let round_bracket_closing_token = Token {
                     kind: TokenKind::RoundBracketClosing,
-                    start: position,
-                    end: position + 1,
-                    line,
-                    column,
-                });
-                column += 1;
-                position += 1;
+                    start: self.position,
+                    end: self.position + 1,
+                    line: self.line,
+                    column: self.column,
+                };
+                self.column += 1;
+                self.position += 1;
+                return Ok(Some(round_bracket_closing_token));
             }
             Some(&'.') => {
                 // At this point we expect to see two more dots as the only
@@ -217,335 +243,329 @@ pub fn lexer(query: String) -> Result<Vec<Token>, SyntaxError> {
                 // value, both are handled separately.)
 
                 // Skip the first dot
-                chars.next();
-                column += 1;
-                position += 1;
+                self.chars.next();
+                self.column += 1;
+                self.position += 1;
 
                 // Check that the next two chars are also dots
                 for _ in 0..2 {
-                    if chars.next() != Some('.') {
-                        return Err(SyntaxError {
-                            message: String::from("Cannot parse the unexpected character '.'"),
-                            position,
-                        });
+                    if self.chars.next() != Some('.') {
+                        return Err(String::from("Cannot parse the unexpected character '.'"));
                     }
-                    column += 1;
-                    position += 1;
+                    self.column += 1;
+                    self.position += 1;
                 }
 
-                token_list.push(Token {
+                let spread_token = Token {
                     kind: TokenKind::Spread,
-                    start: position - 3,
-                    end: position,
-                    line,
-                    column: column - 3,
-                });
+                    start: self.position - 3,
+                    end: self.position,
+                    line: self.line,
+                    column: self.column - 3,
+                };
+                return Ok(Some(spread_token));
             }
             Some(&':') => {
-                chars.next();
-                token_list.push(Token {
+                self.chars.next();
+                let colon_token = Token {
                     kind: TokenKind::Colon,
-                    start: position,
-                    end: position + 1,
-                    line,
-                    column,
-                });
-                column += 1;
-                position += 1;
+                    start: self.position,
+                    end: self.position + 1,
+                    line: self.line,
+                    column: self.column,
+                };
+                self.column += 1;
+                self.position += 1;
+                return Ok(Some(colon_token));
             }
             Some(&'=') => {
-                chars.next();
-                token_list.push(Token {
+                self.chars.next();
+                let equals_sign_token = Token {
                     kind: TokenKind::EqualsSign,
-                    start: position,
-                    end: position + 1,
-                    line,
-                    column,
-                });
-                column += 1;
-                position += 1;
+                    start: self.position,
+                    end: self.position + 1,
+                    line: self.line,
+                    column: self.column,
+                };
+                self.column += 1;
+                self.position += 1;
+                return Ok(Some(equals_sign_token));
             }
             Some(&'@') => {
-                chars.next();
-                token_list.push(Token {
+                self.chars.next();
+                let at_sign_token = Token {
                     kind: TokenKind::AtSign,
-                    start: position,
-                    end: position + 1,
-                    line,
-                    column,
-                });
-                column += 1;
-                position += 1;
+                    start: self.position,
+                    end: self.position + 1,
+                    line: self.line,
+                    column: self.column,
+                };
+                self.column += 1;
+                self.position += 1;
+                return Ok(Some(at_sign_token));
             }
             Some(&'[') => {
-                chars.next();
-                token_list.push(Token {
+                self.chars.next();
+                let square_bracket_opening_token = Token {
                     kind: TokenKind::SquareBracketOpening,
-                    start: position,
-                    end: position + 1,
-                    line,
-                    column,
-                });
-                column += 1;
-                position += 1;
+                    start: self.position,
+                    end: self.position + 1,
+                    line: self.line,
+                    column: self.column,
+                };
+                self.column += 1;
+                self.position += 1;
+                return Ok(Some(square_bracket_opening_token));
             }
             Some(&']') => {
-                chars.next();
-                token_list.push(Token {
+                self.chars.next();
+                let square_bracket_closing_token = Token {
                     kind: TokenKind::SquareBracketClosing,
-                    start: position,
-                    end: position + 1,
-                    line,
-                    column,
-                });
-                column += 1;
-                position += 1;
+                    start: self.position,
+                    end: self.position + 1,
+                    line: self.line,
+                    column: self.column,
+                };
+                self.column += 1;
+                self.position += 1;
+                return Ok(Some(square_bracket_closing_token));
             }
             Some(&'{') => {
-                chars.next();
-                token_list.push(Token {
+                self.chars.next();
+                let curly_bracket_opening_token = Token {
                     kind: TokenKind::CurlyBracketOpening,
-                    start: position,
-                    end: position + 1,
-                    line,
-                    column,
-                });
-                column += 1;
-                position += 1;
+                    start: self.position,
+                    end: self.position + 1,
+                    line: self.line,
+                    column: self.column,
+                };
+                self.column += 1;
+                self.position += 1;
+                return Ok(Some(curly_bracket_opening_token));
             }
             Some(&'|') => {
-                chars.next();
-                token_list.push(Token {
+                self.chars.next();
+                let vertical_bar_token = Token {
                     kind: TokenKind::VerticalBar,
-                    start: position,
-                    end: position + 1,
-                    line,
-                    column,
-                });
-                column += 1;
-                position += 1;
+                    start: self.position,
+                    end: self.position + 1,
+                    line: self.line,
+                    column: self.column,
+                };
+                self.column += 1;
+                self.position += 1;
+                return Ok(Some(vertical_bar_token));
             }
             Some(&'}') => {
-                chars.next();
-                token_list.push(Token {
+                self.chars.next();
+                let curly_bracket_closing_token = Token {
                     kind: TokenKind::CurlyBracketClosing,
-                    start: position,
-                    end: position + 1,
-                    line,
-                    column,
-                });
-                column += 1;
-                position += 1;
+                    start: self.position,
+                    end: self.position + 1,
+                    line: self.line,
+                    column: self.column,
+                };
+                self.column += 1;
+                self.position += 1;
+                return Ok(Some(curly_bracket_closing_token));
             }
             // Name token
             Some(&('A'..='Z')) | Some(&('a'..='z')) | Some(&'_') => {
-                let start = position;
-                let start_column = column;
+                let start = self.position;
+                let start_column = self.column;
 
                 let mut value = String::from("");
-                value.push(chars.next().unwrap());
-                column += 1;
-                position += 1;
+                value.push(self.chars.next().unwrap());
+                self.column += 1;
+                self.position += 1;
 
-                while (Some(&'A')..=Some(&'Z')).contains(&chars.peek())
-                    || (Some(&'a')..=Some(&'z')).contains(&chars.peek())
-                    || (Some(&'0')..=Some(&'9')).contains(&chars.peek())
-                    || chars.peek() == Some(&'_')
+                while (Some(&'A')..=Some(&'Z')).contains(&self.chars.peek())
+                    || (Some(&'a')..=Some(&'z')).contains(&self.chars.peek())
+                    || (Some(&'0')..=Some(&'9')).contains(&self.chars.peek())
+                    || self.chars.peek() == Some(&'_')
                 {
-                    value.push(chars.next().unwrap());
-                    column += 1;
-                    position += 1;
+                    value.push(self.chars.next().unwrap());
+                    self.column += 1;
+                    self.position += 1;
                 }
 
-                token_list.push(Token {
+                return Ok(Some(Token {
                     kind: TokenKind::Name { value },
                     start,
-                    end: position,
-                    line,
+                    end: self.position,
+                    line: self.line,
                     column: start_column,
-                })
+                }));
             }
             // Int or Float token
             Some(&'-') | Some(&('0'..='9')) => {
-                let start = position;
-                let start_column = column;
+                let start = self.position;
+                let start_column = self.column;
 
                 let mut integer_part = String::from("");
 
                 // Optional negative sign
-                if chars.peek() == Some(&'-') {
-                    integer_part.push(chars.next().unwrap());
-                    column += 1;
-                    position += 1;
+                if self.chars.peek() == Some(&'-') {
+                    integer_part.push(self.chars.next().unwrap());
+                    self.column += 1;
+                    self.position += 1;
                 }
 
                 // Leading zeros are not allowed, so if it's a zero it's the
                 // only character of the IntergerPart
-                if chars.peek() == Some(&'0') {
-                    integer_part.push(chars.next().unwrap());
-                    column += 1;
-                    position += 1;
+                if self.chars.peek() == Some(&'0') {
+                    integer_part.push(self.chars.next().unwrap());
+                    self.column += 1;
+                    self.position += 1;
                 } else {
-                    while (Some(&'0')..=Some(&'9')).contains(&chars.peek()) {
-                        integer_part.push(chars.next().unwrap());
-                        column += 1;
-                        position += 1;
+                    while (Some(&'0')..=Some(&'9')).contains(&self.chars.peek()) {
+                        integer_part.push(self.chars.next().unwrap());
+                        self.column += 1;
+                        self.position += 1;
                     }
                 }
 
                 let mut fractional_part = String::from("");
-                if chars.peek() == Some(&'.') {
-                    fractional_part.push(chars.next().unwrap());
-                    column += 1;
-                    position += 1;
+                if self.chars.peek() == Some(&'.') {
+                    fractional_part.push(self.chars.next().unwrap());
+                    self.column += 1;
+                    self.position += 1;
 
                     // Append all the following digits
-                    while (Some(&'0')..=Some(&'9')).contains(&chars.peek()) {
-                        fractional_part.push(chars.next().unwrap());
-                        column += 1;
-                        position += 1;
+                    while (Some(&'0')..=Some(&'9')).contains(&self.chars.peek()) {
+                        fractional_part.push(self.chars.next().unwrap());
+                        self.column += 1;
+                        self.position += 1;
                     }
 
                     if fractional_part == "." {
                         let mut next = String::from("");
-                        if chars.peek() == None {
+                        if self.chars.peek() == None {
                             next.push_str("end of file");
                         } else {
-                            next.push(chars.next().unwrap());
+                            next.push(self.chars.next().unwrap());
                         }
-                        return Err(SyntaxError {
-                            message: format!(
-                                "Invalid number, expected a digit but got: '{}'",
-                                next
-                            ),
-                            position,
-                        });
+                        return Err(format!(
+                            "Invalid number, expected a digit but got: '{}'",
+                            next
+                        ));
                     }
                 }
 
                 let mut exponent_part = String::from("");
-                if chars.peek() == Some(&'e') || chars.peek() == Some(&'E') {
+                if self.chars.peek() == Some(&'e') || self.chars.peek() == Some(&'E') {
                     // ExponentIndicator
-                    exponent_part.push(chars.next().unwrap());
-                    column += 1;
-                    position += 1;
+                    exponent_part.push(self.chars.next().unwrap());
+                    self.column += 1;
+                    self.position += 1;
 
                     // Optional sign
-                    if chars.peek() == Some(&'+') || chars.peek() == Some(&'+') {
-                        exponent_part.push(chars.next().unwrap());
-                        column += 1;
-                        position += 1;
+                    if self.chars.peek() == Some(&'+') || self.chars.peek() == Some(&'+') {
+                        exponent_part.push(self.chars.next().unwrap());
+                        self.column += 1;
+                        self.position += 1;
                     }
 
                     // Append all the following digits
-                    while (Some(&'0')..=Some(&'9')).contains(&chars.peek()) {
-                        exponent_part.push(chars.next().unwrap());
-                        column += 1;
-                        position += 1;
+                    while (Some(&'0')..=Some(&'9')).contains(&self.chars.peek()) {
+                        exponent_part.push(self.chars.next().unwrap());
+                        self.column += 1;
+                        self.position += 1;
                     }
 
                     if exponent_part == "." || exponent_part == ".+" || exponent_part == ".-" {
                         let mut next = String::from("");
-                        if chars.peek() == None {
+                        if self.chars.peek() == None {
                             next.push_str("end of file");
                         } else {
-                            next.push(chars.next().unwrap());
+                            next.push(self.chars.next().unwrap());
                         }
-                        return Err(SyntaxError {
-                            message: format!(
-                                "Invalid number, expected a digit but got: '{}'",
-                                next
-                            ),
-                            position,
-                        });
+                        return Err(format!(
+                            "Invalid number, expected a digit but got: '{}'",
+                            next
+                        ));
                     }
                 }
 
-                if (Some(&'0')..=Some(&'9')).contains(&chars.peek())
-                    || (Some(&'a')..=Some(&'z')).contains(&chars.peek())
-                    || (Some(&'A')..=Some(&'Z')).contains(&chars.peek())
-                    || chars.peek() == Some(&'_')
-                    || chars.peek() == Some(&'.')
+                if (Some(&'0')..=Some(&'9')).contains(&self.chars.peek())
+                    || (Some(&'a')..=Some(&'z')).contains(&self.chars.peek())
+                    || (Some(&'A')..=Some(&'Z')).contains(&self.chars.peek())
+                    || self.chars.peek() == Some(&'_')
+                    || self.chars.peek() == Some(&'.')
                 {
-                    return Err(SyntaxError {
-                        message: format!(
-                            "Invalid number, expected digit but got: '{}'",
-                            chars.next().unwrap()
-                        ),
-                        position,
-                    });
+                    return Err(format!(
+                        "Invalid number, expected digit but got: '{}'",
+                        self.chars.next().unwrap()
+                    ));
                 }
 
                 if fractional_part == "" && exponent_part == "" {
                     // It's an integer
-                    token_list.push(Token {
+                    return Ok(Some(Token {
                         kind: TokenKind::Int {
                             value: integer_part,
                         },
                         start,
-                        end: position,
-                        line,
+                        end: self.position,
+                        line: self.line,
                         column: start_column,
-                    })
+                    }));
                 } else {
                     // It's a float
                     let mut value = String::from("");
                     value.push_str(&integer_part);
                     value.push_str(&fractional_part);
                     value.push_str(&exponent_part);
-                    token_list.push(Token {
+                    return Ok(Some(Token {
                         kind: TokenKind::Float { value },
                         start,
-                        end: position,
-                        line,
+                        end: self.position,
+                        line: self.line,
                         column: start_column,
-                    })
+                    }));
                 }
             }
             // String token
             Some(&'"') => {
-                let start = position;
-                let start_line = line;
-                let start_column = column;
+                let start = self.position;
+                let start_line = self.line;
+                let start_column = self.column;
 
-                chars.next();
-                position += 1;
-                column += 1;
+                self.chars.next();
+                self.position += 1;
+                self.column += 1;
 
-                if chars.peek() == Some(&'"') {
-                    chars.next();
-                    position += 1;
-                    column += 1;
+                if self.chars.peek() == Some(&'"') {
+                    self.chars.next();
+                    self.position += 1;
+                    self.column += 1;
 
-                    if chars.peek() == Some(&'"') {
+                    if self.chars.peek() == Some(&'"') {
                         // Block string
-                        chars.next();
-                        position += 1;
-                        column += 1;
+                        self.chars.next();
+                        self.position += 1;
+                        self.column += 1;
 
                         let mut value = String::from("");
                         let mut is_done = false;
                         let mut passes = 0;
                         while !is_done {
-                            let next = chars.next();
+                            let next = self.chars.next();
 
                             if next == None {
-                                return Err(SyntaxError {
-                                    message: String::from("Unterminated string"),
-                                    position,
-                                });
+                                return Err(String::from("Unterminated string"));
                             }
 
                             if next == Some('\r') {
-                                line += 1;
+                                self.line += 1;
                             }
                             if next == Some('\n') && value.chars().last() != Some('\r') {
-                                line += 1;
+                                self.line += 1;
                             }
 
                             value.push(next.unwrap());
-                            position += 1;
-                            column += 1;
+                            self.position += 1;
+                            self.column += 1;
                             if passes > 0 {
                                 passes -= 1
                             };
@@ -565,43 +585,40 @@ pub fn lexer(query: String) -> Result<Vec<Token>, SyntaxError> {
                         }
 
                         if value.len() < 3 || value[value.len() - 3..] != String::from("\"\"\"") {
-                            return Err(SyntaxError {
-                                message: String::from("Unterminated string"),
-                                position,
-                            });
+                            return Err(String::from("Unterminated string"));
                         }
 
-                        token_list.push(Token {
+                        return Ok(Some(Token {
                             kind: TokenKind::String { value },
                             start,
-                            end: position,
+                            end: self.position,
                             line: start_line,
                             column: start_column,
-                        })
+                        }));
                     } else {
                         // Empty string
-                        token_list.push(Token {
+                        return Ok(Some(Token {
                             kind: TokenKind::String {
                                 value: String::from(""),
                             },
                             start,
-                            end: position,
-                            line,
+                            end: self.position,
+                            line: self.line,
                             column: start_column,
-                        })
+                        }));
                     }
                 } else {
                     // Non-empty non-block stirng
                     let mut value = String::from("");
 
-                    while chars.peek() != Some(&'"') && chars.peek() != None {
-                        let next = chars.next().unwrap();
-                        position += 1;
-                        column += 1;
+                    while self.chars.peek() != Some(&'"') && self.chars.peek() != None {
+                        let next = self.chars.next().unwrap();
+                        self.position += 1;
+                        self.column += 1;
 
                         if next == '\\' {
                             // Escaped characters & unicode
-                            match chars.next() {
+                            match self.chars.next() {
                                 character
                                 @
                                 (Some('"') | Some('\\') | Some('/') | Some('b')
@@ -612,18 +629,15 @@ pub fn lexer(query: String) -> Result<Vec<Token>, SyntaxError> {
                                     // The next 4 characters define the unicode sequence
                                     let mut unicode = String::from("");
                                     for _ in 0..4 {
-                                        let unicode_char = chars.next();
-                                        position += 1;
-                                        column += 1;
+                                        let unicode_char = self.chars.next();
+                                        self.position += 1;
+                                        self.column += 1;
 
                                         if unicode_char == None {
-                                            return Err(SyntaxError {
-                                                message: format!(
-                                                    "Invalid character escape sequence: \\u{}",
-                                                    unicode
-                                                ),
-                                                position,
-                                            });
+                                            return Err(format!(
+                                                "Invalid character escape sequence: \\u{}",
+                                                unicode
+                                            ));
                                         }
 
                                         unicode.push(unicode_char.unwrap());
@@ -633,97 +647,100 @@ pub fn lexer(query: String) -> Result<Vec<Token>, SyntaxError> {
                                         Ok(unicode_int) => {
                                             let unicode_char = char::from_u32(unicode_int);
                                             if unicode_char == None {
-                                                return Err(SyntaxError {
-                                                    message: format!(
-                                                        "Invalid character escape sequence: \\u{}",
-                                                        unicode
-                                                    ),
-                                                    position,
-                                                });
+                                                return Err(format!(
+                                                    "Invalid character escape sequence: \\u{}",
+                                                    unicode
+                                                ));
                                             }
                                             value.push(unicode_char.unwrap());
                                         }
                                         Err(_) => {
-                                            return Err(SyntaxError {
-                                                message: format!(
-                                                    "Invalid character escape sequence: \\u{}",
-                                                    unicode
-                                                ),
-                                                position,
-                                            });
+                                            return Err(format!(
+                                                "Invalid character escape sequence: \\u{}",
+                                                unicode
+                                            ));
                                         }
                                     }
                                 }
                                 character => {
-                                    return Err(SyntaxError {
-                                        message: format!(
-                                            "Invalid character escape sequence: \\{}",
-                                            if character == None {
-                                                String::from("")
-                                            } else {
-                                                character.unwrap().to_string()
-                                            }
-                                        ),
-                                        position,
-                                    });
+                                    return Err(format!(
+                                        "Invalid character escape sequence: \\{}",
+                                        if character == None {
+                                            String::from("")
+                                        } else {
+                                            character.unwrap().to_string()
+                                        }
+                                    ));
                                 }
                             }
-                            position += 1;
-                            column += 1;
+                            self.position += 1;
+                            self.column += 1;
                         } else if next == '\n' || next == '\r' {
                             // Line feed & carriage return
-                            return Err(SyntaxError {
-                                message: String::from("Unterminated string"),
-                                position,
-                            });
+                            return Err(String::from("Unterminated string"));
                         } else {
                             // Source character
                             value.push(next);
                         }
                     }
 
-                    if chars.peek() == None {
-                        return Err(SyntaxError {
-                            message: String::from("Unterminated string"),
-                            position,
-                        });
+                    if self.chars.peek() == None {
+                        return Err(String::from("Unterminated string"));
                     }
 
                     // Remove closing quote
-                    chars.next();
-                    position += 1;
-                    column += 1;
+                    self.chars.next();
+                    self.position += 1;
+                    self.column += 1;
 
-                    token_list.push(Token {
+                    return Ok(Some(Token {
                         kind: TokenKind::String { value },
                         start,
-                        end: position,
-                        line,
+                        end: self.position,
+                        line: self.line,
                         column: start_column,
-                    })
+                    }));
                 }
             }
-            None => {
-                return Err(SyntaxError {
-                    message: String::from("Unexpected end of query string"),
-                    position,
-                })
-            }
-            character => {
-                return Err(SyntaxError {
-                    message: format!("Unexpected character {}", character.unwrap()),
-                    position,
-                })
-            }
+            None => Err(String::from("Unexpected end of query string")),
+            character => Err(format!("Unexpected character {}", character.unwrap())),
         }
     }
 
-    token_list.push(Token {
-        kind: TokenKind::EOF,
-        start: position,
-        end: position,
-        line,
-        column,
-    });
-    return Ok(token_list);
+    pub fn next(&mut self) -> Result<Option<Token>, SyntaxError> {
+        match &self.error {
+            // Continue looking for the next token if there is no error
+            None => match self.next_no_error() {
+                Ok(token) => Ok(token),
+                Err(error) => {
+                    self.error = Some(error.to_string());
+                    return Err(SyntaxError {
+                        message: error.to_string(),
+                        position: self.position,
+                    });
+                }
+            },
+            // If there already is an error, continue returning the error
+            err => Err(SyntaxError {
+                message: String::from(err.as_ref().unwrap()),
+                position: self.position,
+            }),
+        }
+    }
+
+    pub fn to_vec(&mut self) -> Result<Vec<Token>, SyntaxError> {
+        let mut token_vec: Vec<Token> = Vec::new();
+        let mut is_done = false;
+
+        while !is_done {
+            match self.next() {
+                Err(error) => return Err(error),
+                Ok(some_token) => match some_token {
+                    None => is_done = true,
+                    token => token_vec.push(token.unwrap()),
+                },
+            }
+        }
+        return Ok(token_vec);
+    }
 }
