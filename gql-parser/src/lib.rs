@@ -6,6 +6,12 @@ pub struct SyntaxError {
     pub position: i32,
 }
 
+impl PartialEq for SyntaxError {
+    fn eq(&self, other: &Self) -> bool {
+        self.message == other.message && self.position == other.position
+    }
+}
+
 #[derive(Debug)]
 pub enum TokenKind {
     // Start end end of file
@@ -50,6 +56,97 @@ impl fmt::Display for TokenKind {
     }
 }
 
+impl PartialEq for TokenKind {
+    fn eq(&self, other: &Self) -> bool {
+        match self {
+            TokenKind::SOF => match other {
+                TokenKind::SOF => true,
+                _ => false,
+            },
+            TokenKind::EOF => match other {
+                TokenKind::EOF => true,
+                _ => false,
+            },
+            TokenKind::Comment { value: value_self } => match other {
+                TokenKind::Comment { value: value_other } => value_self == value_other,
+                _ => false,
+            },
+            TokenKind::ExclamationMark => match other {
+                TokenKind::ExclamationMark => true,
+                _ => false,
+            },
+            TokenKind::DollarSign => match other {
+                TokenKind::DollarSign => true,
+                _ => false,
+            },
+            TokenKind::Ampersand => match other {
+                TokenKind::Ampersand => true,
+                _ => false,
+            },
+            TokenKind::RoundBracketOpening => match other {
+                TokenKind::RoundBracketOpening => true,
+                _ => false,
+            },
+            TokenKind::RoundBracketClosing => match other {
+                TokenKind::RoundBracketClosing => true,
+                _ => false,
+            },
+            TokenKind::Spread => match other {
+                TokenKind::Spread => true,
+                _ => false,
+            },
+            TokenKind::Colon => match other {
+                TokenKind::Colon => true,
+                _ => false,
+            },
+            TokenKind::EqualsSign => match other {
+                TokenKind::EqualsSign => true,
+                _ => false,
+            },
+            TokenKind::AtSign => match other {
+                TokenKind::AtSign => true,
+                _ => false,
+            },
+            TokenKind::SquareBracketOpening => match other {
+                TokenKind::SquareBracketOpening => true,
+                _ => false,
+            },
+            TokenKind::SquareBracketClosing => match other {
+                TokenKind::SquareBracketClosing => true,
+                _ => false,
+            },
+            TokenKind::CurlyBracketOpening => match other {
+                TokenKind::CurlyBracketOpening => true,
+                _ => false,
+            },
+            TokenKind::VerticalBar => match other {
+                TokenKind::VerticalBar => true,
+                _ => false,
+            },
+            TokenKind::CurlyBracketClosing => match other {
+                TokenKind::CurlyBracketClosing => true,
+                _ => false,
+            },
+            TokenKind::Name { value: value_self } => match other {
+                TokenKind::Name { value: value_other } => value_self == value_other,
+                _ => false,
+            },
+            TokenKind::Int { value: value_self } => match other {
+                TokenKind::Int { value: value_other } => value_self == value_other,
+                _ => false,
+            },
+            TokenKind::Float { value: value_self } => match other {
+                TokenKind::Float { value: value_other } => value_self == value_other,
+                _ => false,
+            },
+            TokenKind::String { value: value_self } => match other {
+                TokenKind::String { value: value_other } => value_self == value_other,
+                _ => false,
+            },
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct Token {
     pub kind: TokenKind,
@@ -57,6 +154,16 @@ pub struct Token {
     pub end: i32,
     pub line: i32,
     pub column: i32,
+}
+
+impl PartialEq for Token {
+    fn eq(&self, other: &Self) -> bool {
+        self.kind == other.kind
+            && self.start == other.start
+            && self.end == other.end
+            && self.line == other.line
+            && self.column == other.column
+    }
 }
 
 pub struct Lexer<'a> {
@@ -235,8 +342,10 @@ impl Lexer<'_> {
                 self.next_char();
 
                 // Check that the next two chars are also dots
-                for _ in 0..2 {
+                for index in 1..3 {
                     if self.chars.peek() != Some(&'.') {
+                        self.position -= index;
+                        self.column -= index;
                         return Err(String::from("Cannot parse the unexpected character '.'"));
                     }
                     self.next_char();
@@ -379,6 +488,12 @@ impl Lexer<'_> {
                 // only character of the IntergerPart
                 if self.chars.peek() == Some(&'0') {
                     integer_part.push(self.next_char().unwrap());
+                    if (Some(&'0')..=Some(&'9')).contains(&self.chars.peek()) {
+                        return Err(format!(
+                            "Invalid number, unexpected digit after 0: '{}'",
+                            self.chars.peek().unwrap()
+                        ));
+                    }
                 } else {
                     while (Some(&'0')..=Some(&'9')).contains(&self.chars.peek()) {
                         integer_part.push(self.next_char().unwrap());
@@ -396,7 +511,7 @@ impl Lexer<'_> {
 
                     if fractional_part == "." {
                         return Err(format!(
-                            "Invalid number, expected a digit but got: '{}'",
+                            "Invalid number, expected digit but got: '{}'",
                             if self.chars.peek() == None {
                                 String::from("end of file")
                             } else {
@@ -412,7 +527,7 @@ impl Lexer<'_> {
                     exponent_part.push(self.next_char().unwrap());
 
                     // Optional sign
-                    if self.chars.peek() == Some(&'+') || self.chars.peek() == Some(&'+') {
+                    if self.chars.peek() == Some(&'+') || self.chars.peek() == Some(&'-') {
                         exponent_part.push(self.next_char().unwrap());
                     }
 
@@ -421,9 +536,15 @@ impl Lexer<'_> {
                         exponent_part.push(self.next_char().unwrap());
                     }
 
-                    if exponent_part == "." || exponent_part == ".+" || exponent_part == ".-" {
+                    if exponent_part == "e"
+                        || exponent_part == "e+"
+                        || exponent_part == "e-"
+                        || exponent_part == "E"
+                        || exponent_part == "E+"
+                        || exponent_part == "E-"
+                    {
                         return Err(format!(
-                            "Invalid number, expected a digit but got: '{}'",
+                            "Invalid number, expected digit but got: '{}'",
                             if self.chars.peek() == None {
                                 String::from("end of file")
                             } else {
@@ -529,7 +650,9 @@ impl Lexer<'_> {
                         }
 
                         return Ok(Some(Token {
-                            kind: TokenKind::String { value },
+                            kind: TokenKind::String {
+                                value: value[..value.len() - 3].to_string(),
+                            },
                             start,
                             end: self.position,
                             line: start_line,
@@ -557,12 +680,14 @@ impl Lexer<'_> {
                         if next == '\\' {
                             // Escaped characters & unicode
                             match self.next_char() {
-                                character
-                                @
-                                (Some('"') | Some('\\') | Some('/') | Some('b')
-                                | Some('f') | Some('n') | Some('r') | Some('t')) => {
+                                character @ (Some('"') | Some('\\') | Some('/')) => {
                                     value.push(character.unwrap())
                                 }
+                                Some('b') => value.push('\u{8}'),
+                                Some('f') => value.push('\u{c}'),
+                                Some('n') => value.push('\n'),
+                                Some('r') => value.push('\r'),
+                                Some('t') => value.push('\t'),
                                 Some('u') => {
                                     // The next 4 characters define the unicode sequence
                                     let mut unicode = String::from("");
@@ -619,6 +744,8 @@ impl Lexer<'_> {
                             }
                         } else if next == '\n' || next == '\r' {
                             // Line feed & carriage return
+                            self.position -= 1;
+                            self.column -= 1;
                             return Err(String::from("Unterminated string"));
                         } else {
                             // Source character
@@ -643,7 +770,10 @@ impl Lexer<'_> {
                 }
             }
             None => Err(String::from("Unexpected end of query string")),
-            character => Err(format!("Unexpected character {}", character.unwrap())),
+            character => Err(format!(
+                "Cannot parse the unexpected character '{}'",
+                character.unwrap()
+            )),
         }
     }
 
@@ -682,5 +812,555 @@ impl Lexer<'_> {
             }
         }
         return Ok(token_vec);
+    }
+}
+
+#[cfg(test)]
+mod lexer {
+    use super::*;
+
+    fn equals(v1: Result<Vec<Token>, SyntaxError>, v2: Result<Vec<Token>, SyntaxError>) {
+        match v1 {
+            Ok(tokens1) => match v2 {
+                Ok(tokens2) => {
+                    if tokens1.len() != tokens2.len() {
+                        panic!(
+                            "Expected {} tokens, got {} tokens.",
+                            tokens2.len(),
+                            tokens1.len()
+                        )
+                    }
+                    for (index, token1) in tokens1.iter().enumerate() {
+                        let token2 = tokens2.get(index).unwrap();
+                        if token1 != token2 {
+                            panic!(
+                                "Expected {:?} in position {}, got {:?}",
+                                token2, index, token1
+                            )
+                        }
+                    }
+                }
+                Err(error2) => panic!("Expected {:?}, got {:?}", error2, tokens1),
+            },
+            Err(error1) => match v2 {
+                Ok(tokens2) => {
+                    panic!("Expected {:?}, got {:?}", tokens2, error1);
+                }
+                Err(error2) => {
+                    if error1 != error2 {
+                        panic!("Expected {:?}, got {:?}", error2, error1);
+                    }
+                }
+            },
+        };
+    }
+
+    #[test]
+    fn should_lex_a_simple_query() {
+        equals(
+            Lexer::new("{ hello }").to_vec(),
+            #[cfg_attr(rustfmt, rustfmt_skip)]
+            Ok(vec![
+                Token { kind: TokenKind::SOF,                                   start: 0, end: 0, line: 0, column:  0 },
+                Token { kind: TokenKind::CurlyBracketOpening,                   start: 0, end: 1, line: 1, column:  1 },
+                Token { kind: TokenKind::Name { value: String::from("hello") }, start: 2, end: 7, line: 1, column:  3 },
+                Token { kind: TokenKind::CurlyBracketClosing,                   start: 8, end: 9, line: 1, column:  9 },
+                Token { kind: TokenKind::EOF,                                   start: 9, end: 9, line: 1, column: 10 },
+            ]),
+        );
+    }
+
+    #[test]
+    fn should_skip_all_ignored_tokens() {
+        equals(
+            Lexer::new("\u{feff} \t\n,,,\r,\r\n,,").to_vec(),
+            #[cfg_attr(rustfmt, rustfmt_skip)]
+            Ok(vec![
+                Token { kind: TokenKind::SOF, start:  0, end:  0, line: 0, column: 0 },
+                Token { kind: TokenKind::EOF, start: 13, end: 13, line: 4, column: 3 },
+            ]),
+        );
+    }
+
+    #[test]
+    fn should_include_comment_tokens() {
+        equals(
+            Lexer::new("\t,,#this is a comment\n,#until the end of file").to_vec(),
+            #[cfg_attr(rustfmt, rustfmt_skip)]
+            Ok(vec![
+                Token { kind: TokenKind::SOF,                                                      start:  0, end:  0, line: 0, column:  0 },
+                Token { kind: TokenKind::Comment { value: String::from("this is a comment") },     start:  3, end: 21, line: 1, column:  4 },
+                Token { kind: TokenKind::Comment { value: String::from("until the end of file") }, start: 23, end: 45, line: 2, column:  2 },
+                Token { kind: TokenKind::EOF,                                                      start: 45, end: 45, line: 2, column: 24 },
+            ]),
+        );
+    }
+
+    #[test]
+    fn should_return_an_error_for_invalid_source_chars() {
+        equals(
+            Lexer::new("Hello\u{2}world").to_vec(),
+            Err(SyntaxError {
+                message: String::from("Not a valid source character"),
+                position: 5,
+            }),
+        );
+    }
+
+    #[test]
+    fn should_parse_punctuators() {
+        equals(
+            Lexer::new("!$&()...:=@[]{|}").to_vec(),
+            #[cfg_attr(rustfmt, rustfmt_skip)]
+            Ok(vec![
+                Token { kind: TokenKind::SOF,                  start:  0, end:  0, line: 0, column:  0 },
+                Token { kind: TokenKind::ExclamationMark,      start:  0, end:  1, line: 1, column:  1 },
+                Token { kind: TokenKind::DollarSign,           start:  1, end:  2, line: 1, column:  2 },
+                Token { kind: TokenKind::Ampersand,            start:  2, end:  3, line: 1, column:  3 },
+                Token { kind: TokenKind::RoundBracketOpening,  start:  3, end:  4, line: 1, column:  4 },
+                Token { kind: TokenKind::RoundBracketClosing,  start:  4, end:  5, line: 1, column:  5 },
+                Token { kind: TokenKind::Spread,               start:  5, end:  8, line: 1, column:  6 },
+                Token { kind: TokenKind::Colon,                start:  8, end:  9, line: 1, column:  9 },
+                Token { kind: TokenKind::EqualsSign,           start:  9, end: 10, line: 1, column: 10 },
+                Token { kind: TokenKind::AtSign,               start: 10, end: 11, line: 1, column: 11 },
+                Token { kind: TokenKind::SquareBracketOpening, start: 11, end: 12, line: 1, column: 12 },
+                Token { kind: TokenKind::SquareBracketClosing, start: 12, end: 13, line: 1, column: 13 },
+                Token { kind: TokenKind::CurlyBracketOpening,  start: 13, end: 14, line: 1, column: 14 },
+                Token { kind: TokenKind::VerticalBar,          start: 14, end: 15, line: 1, column: 15 },
+                Token { kind: TokenKind::CurlyBracketClosing,  start: 15, end: 16, line: 1, column: 16 },
+                Token { kind: TokenKind::EOF,                  start: 16, end: 16, line: 1, column: 17 },
+            ]),
+        );
+    }
+
+    #[test]
+    fn should_return_an_error_for_incomplete_spread() {
+        equals(
+            Lexer::new("Hello.world").to_vec(),
+            Err(SyntaxError {
+                message: String::from("Cannot parse the unexpected character '.'"),
+                position: 5,
+            }),
+        );
+        equals(
+            Lexer::new("Hello..world").to_vec(),
+            Err(SyntaxError {
+                message: String::from("Cannot parse the unexpected character '.'"),
+                position: 5,
+            }),
+        );
+    }
+
+    #[test]
+    fn should_parse_name_tokens() {
+        equals(
+            Lexer::new("HELLO hello _HELLO __hello hello123 hello_123 _123 __123").to_vec(),
+            #[cfg_attr(rustfmt, rustfmt_skip)]
+            Ok(vec![
+                Token { kind: TokenKind::SOF,                                       start:  0, end:  0, line: 0, column:  0 },
+                Token { kind: TokenKind::Name { value: String::from("HELLO") },     start:  0, end:  5, line: 1, column:  1 },
+                Token { kind: TokenKind::Name { value: String::from("hello") },     start:  6, end: 11, line: 1, column:  7 },
+                Token { kind: TokenKind::Name { value: String::from("_HELLO") },    start: 12, end: 18, line: 1, column: 13 },
+                Token { kind: TokenKind::Name { value: String::from("__hello") },   start: 19, end: 26, line: 1, column: 20 },
+                Token { kind: TokenKind::Name { value: String::from("hello123") },  start: 27, end: 35, line: 1, column: 28 },
+                Token { kind: TokenKind::Name { value: String::from("hello_123") }, start: 36, end: 45, line: 1, column: 37 },
+                Token { kind: TokenKind::Name { value: String::from("_123") },      start: 46, end: 50, line: 1, column: 47 },
+                Token { kind: TokenKind::Name { value: String::from("__123") },     start: 51, end: 56, line: 1, column: 52 },
+                Token { kind: TokenKind::EOF,                                       start: 56, end: 56, line: 1, column: 57 },
+            ]),
+        );
+    }
+
+    #[test]
+    fn should_return_an_error_when_starting_with_a_number() {
+        equals(
+            Lexer::new("Hello 42world").to_vec(),
+            Err(SyntaxError {
+                message: String::from("Invalid number, expected digit but got: 'w'"),
+                position: 8,
+            }),
+        );
+    }
+
+    #[test]
+    fn should_parse_int_tokens() {
+        equals(
+            Lexer::new("0 -0 42 -42").to_vec(),
+            #[cfg_attr(rustfmt, rustfmt_skip)]
+            Ok(vec![
+                Token { kind: TokenKind::SOF,                                start:  0, end:  0, line: 0, column:  0 },
+                Token { kind: TokenKind::Int { value: String::from("0") },   start:  0, end:  1, line: 1, column:  1 },
+                Token { kind: TokenKind::Int { value: String::from("-0") },  start:  2, end:  4, line: 1, column:  3 },
+                Token { kind: TokenKind::Int { value: String::from("42") },  start:  5, end:  7, line: 1, column:  6 },
+                Token { kind: TokenKind::Int { value: String::from("-42") }, start:  8, end: 11, line: 1, column:  9 },
+                Token { kind: TokenKind::EOF,                                start: 11, end: 11, line: 1, column: 12 },
+            ]),
+        );
+    }
+
+    #[test]
+    fn should_return_an_error_for_leading_plus_for_ints() {
+        equals(
+            Lexer::new("+0").to_vec(),
+            Err(SyntaxError {
+                message: String::from("Cannot parse the unexpected character '+'"),
+                position: 0,
+            }),
+        );
+        equals(
+            Lexer::new("+42").to_vec(),
+            Err(SyntaxError {
+                message: String::from("Cannot parse the unexpected character '+'"),
+                position: 0,
+            }),
+        );
+    }
+
+    #[test]
+    fn should_return_an_error_for_leading_zeros_for_ints() {
+        equals(
+            Lexer::new("042").to_vec(),
+            Err(SyntaxError {
+                message: String::from("Invalid number, unexpected digit after 0: '4'"),
+                position: 1,
+            }),
+        );
+        equals(
+            Lexer::new("0042").to_vec(),
+            Err(SyntaxError {
+                message: String::from("Invalid number, unexpected digit after 0: '0'"),
+                position: 1,
+            }),
+        );
+    }
+
+    #[test]
+    fn should_parse_float_tokens_with_a_fractional_part() {
+        equals(
+            Lexer::new("0.43 -0.43 42.43 -42.43").to_vec(),
+            #[cfg_attr(rustfmt, rustfmt_skip)]
+            Ok(vec![
+                Token { kind: TokenKind::SOF,                                     start:  0, end:  0, line: 0, column:  0 },
+                Token { kind: TokenKind::Float { value: String::from("0.43") },   start:  0, end:  4, line: 1, column:  1 },
+                Token { kind: TokenKind::Float { value: String::from("-0.43") },  start:  5, end: 10, line: 1, column:  6 },
+                Token { kind: TokenKind::Float { value: String::from("42.43") },  start: 11, end: 16, line: 1, column: 12 },
+                Token { kind: TokenKind::Float { value: String::from("-42.43") }, start: 17, end: 23, line: 1, column: 18 },
+                Token { kind: TokenKind::EOF,                                     start: 23, end: 23, line: 1, column: 24 },
+            ]),
+        );
+    }
+
+    #[test]
+    fn should_parse_float_tokens_with_an_exponent_part() {
+        equals(
+            Lexer::new("0e44 0E44 0e+44 0E+44 0e-44 0E-44 -0e44 -0E44 -0e+44 -0E+44 -0e-44 -0E-44 42e44 42E44 42e+44 42E+44 42e-44 42E-44 -42e44 -42E44 -42e+44 -42E+44 -42e-44 -42E-44").to_vec(),
+            #[cfg_attr(rustfmt, rustfmt_skip)]
+            Ok(vec![
+                Token { kind: TokenKind::SOF,                                      start:   0, end:   0, line: 0, column:   0 },
+                Token { kind: TokenKind::Float { value: String::from("0e44") },    start:   0, end:   4, line: 1, column:   1 },
+                Token { kind: TokenKind::Float { value: String::from("0E44") },    start:   5, end:   9, line: 1, column:   6 },
+                Token { kind: TokenKind::Float { value: String::from("0e+44") },   start:  10, end:  15, line: 1, column:  11 },
+                Token { kind: TokenKind::Float { value: String::from("0E+44") },   start:  16, end:  21, line: 1, column:  17 },
+                Token { kind: TokenKind::Float { value: String::from("0e-44") },   start:  22, end:  27, line: 1, column:  23 },
+                Token { kind: TokenKind::Float { value: String::from("0E-44") },   start:  28, end:  33, line: 1, column:  29 },
+                Token { kind: TokenKind::Float { value: String::from("-0e44") },   start:  34, end:  39, line: 1, column:  35 },
+                Token { kind: TokenKind::Float { value: String::from("-0E44") },   start:  40, end:  45, line: 1, column:  41 },
+                Token { kind: TokenKind::Float { value: String::from("-0e+44") },  start:  46, end:  52, line: 1, column:  47 },
+                Token { kind: TokenKind::Float { value: String::from("-0E+44") },  start:  53, end:  59, line: 1, column:  54 },
+                Token { kind: TokenKind::Float { value: String::from("-0e-44") },  start:  60, end:  66, line: 1, column:  61 },
+                Token { kind: TokenKind::Float { value: String::from("-0E-44") },  start:  67, end:  73, line: 1, column:  68 },
+                Token { kind: TokenKind::Float { value: String::from("42e44") },   start:  74, end:  79, line: 1, column:  75 },
+                Token { kind: TokenKind::Float { value: String::from("42E44") },   start:  80, end:  85, line: 1, column:  81 },
+                Token { kind: TokenKind::Float { value: String::from("42e+44") },  start:  86, end:  92, line: 1, column:  87 },
+                Token { kind: TokenKind::Float { value: String::from("42E+44") },  start:  93, end:  99, line: 1, column:  94 },
+                Token { kind: TokenKind::Float { value: String::from("42e-44") },  start: 100, end: 106, line: 1, column: 101 },
+                Token { kind: TokenKind::Float { value: String::from("42E-44") },  start: 107, end: 113, line: 1, column: 108 },
+                Token { kind: TokenKind::Float { value: String::from("-42e44") },  start: 114, end: 120, line: 1, column: 115 },
+                Token { kind: TokenKind::Float { value: String::from("-42E44") },  start: 121, end: 127, line: 1, column: 122 },
+                Token { kind: TokenKind::Float { value: String::from("-42e+44") }, start: 128, end: 135, line: 1, column: 129 },
+                Token { kind: TokenKind::Float { value: String::from("-42E+44") }, start: 136, end: 143, line: 1, column: 137 },
+                Token { kind: TokenKind::Float { value: String::from("-42e-44") }, start: 144, end: 151, line: 1, column: 145 },
+                Token { kind: TokenKind::Float { value: String::from("-42E-44") }, start: 152, end: 159, line: 1, column: 153 },
+                Token { kind: TokenKind::EOF,                                      start: 159, end: 159, line: 1, column: 160 },
+            ]),
+        );
+    }
+
+    #[test]
+    fn should_parse_float_tokens_with_fractional_and_exponent_part() {
+        equals(
+            Lexer::new("0.43e44 0.43E44 0.43e+44 0.43E+44 0.43e-44 0.43E-44 -0.43e44 -0.43E44 -0.43e+44 -0.43E+44 -0.43e-44 -0.43E-44 42.43e44 42.43E44 42.43e+44 42.43E+44 42.43e-44 42.43E-44 -42.43e44 -42.43E44 -42.43e+44 -42.43E+44 -42.43e-44 -42.43E-44").to_vec(),
+            #[cfg_attr(rustfmt, rustfmt_skip)]
+            Ok(vec![
+                Token { kind: TokenKind::SOF,                                         start:   0, end:   0, line: 0, column:   0 },
+                Token { kind: TokenKind::Float { value: String::from("0.43e44") },    start:   0, end:   7, line: 1, column:   1 },
+                Token { kind: TokenKind::Float { value: String::from("0.43E44") },    start:   8, end:  15, line: 1, column:   9 },
+                Token { kind: TokenKind::Float { value: String::from("0.43e+44") },   start:  16, end:  24, line: 1, column:  17 },
+                Token { kind: TokenKind::Float { value: String::from("0.43E+44") },   start:  25, end:  33, line: 1, column:  26 },
+                Token { kind: TokenKind::Float { value: String::from("0.43e-44") },   start:  34, end:  42, line: 1, column:  35 },
+                Token { kind: TokenKind::Float { value: String::from("0.43E-44") },   start:  43, end:  51, line: 1, column:  44 },
+                Token { kind: TokenKind::Float { value: String::from("-0.43e44") },   start:  52, end:  60, line: 1, column:  53 },
+                Token { kind: TokenKind::Float { value: String::from("-0.43E44") },   start:  61, end:  69, line: 1, column:  62 },
+                Token { kind: TokenKind::Float { value: String::from("-0.43e+44") },  start:  70, end:  79, line: 1, column:  71 },
+                Token { kind: TokenKind::Float { value: String::from("-0.43E+44") },  start:  80, end:  89, line: 1, column:  81 },
+                Token { kind: TokenKind::Float { value: String::from("-0.43e-44") },  start:  90, end:  99, line: 1, column:  91 },
+                Token { kind: TokenKind::Float { value: String::from("-0.43E-44") },  start: 100, end: 109, line: 1, column: 101 },
+                Token { kind: TokenKind::Float { value: String::from("42.43e44") },   start: 110, end: 118, line: 1, column: 111 },
+                Token { kind: TokenKind::Float { value: String::from("42.43E44") },   start: 119, end: 127, line: 1, column: 120 },
+                Token { kind: TokenKind::Float { value: String::from("42.43e+44") },  start: 128, end: 137, line: 1, column: 129 },
+                Token { kind: TokenKind::Float { value: String::from("42.43E+44") },  start: 138, end: 147, line: 1, column: 139 },
+                Token { kind: TokenKind::Float { value: String::from("42.43e-44") },  start: 148, end: 157, line: 1, column: 149 },
+                Token { kind: TokenKind::Float { value: String::from("42.43E-44") },  start: 158, end: 167, line: 1, column: 159 },
+                Token { kind: TokenKind::Float { value: String::from("-42.43e44") },  start: 168, end: 177, line: 1, column: 169 },
+                Token { kind: TokenKind::Float { value: String::from("-42.43E44") },  start: 178, end: 187, line: 1, column: 179 },
+                Token { kind: TokenKind::Float { value: String::from("-42.43e+44") }, start: 188, end: 198, line: 1, column: 189 },
+                Token { kind: TokenKind::Float { value: String::from("-42.43E+44") }, start: 199, end: 209, line: 1, column: 200 },
+                Token { kind: TokenKind::Float { value: String::from("-42.43e-44") }, start: 210, end: 220, line: 1, column: 211 },
+                Token { kind: TokenKind::Float { value: String::from("-42.43E-44") }, start: 221, end: 231, line: 1, column: 222 },
+                Token { kind: TokenKind::EOF,                                         start: 231, end: 231, line: 1, column: 232 },
+            ]),
+        );
+    }
+
+    #[test]
+    fn should_return_an_error_for_leading_plus_for_floats() {
+        equals(
+            Lexer::new("+0").to_vec(),
+            Err(SyntaxError {
+                message: String::from("Cannot parse the unexpected character '+'"),
+                position: 0,
+            }),
+        );
+        equals(
+            Lexer::new("+42.43").to_vec(),
+            Err(SyntaxError {
+                message: String::from("Cannot parse the unexpected character '+'"),
+                position: 0,
+            }),
+        );
+    }
+
+    #[test]
+    fn should_return_an_error_for_leading_zeros_for_floats() {
+        equals(
+            Lexer::new("042.43").to_vec(),
+            Err(SyntaxError {
+                message: String::from("Invalid number, unexpected digit after 0: '4'"),
+                position: 1,
+            }),
+        );
+        equals(
+            Lexer::new("0042.43").to_vec(),
+            Err(SyntaxError {
+                message: String::from("Invalid number, unexpected digit after 0: '0'"),
+                position: 1,
+            }),
+        );
+    }
+
+    #[test]
+    fn should_return_an_error_for_empty_fractional_part() {
+        equals(
+            Lexer::new("0.").to_vec(),
+            Err(SyntaxError {
+                message: String::from("Invalid number, expected digit but got: 'end of file'"),
+                position: 2,
+            }),
+        );
+        equals(
+            Lexer::new("42.e44").to_vec(),
+            Err(SyntaxError {
+                message: String::from("Invalid number, expected digit but got: 'e'"),
+                position: 3,
+            }),
+        );
+    }
+
+    #[test]
+    fn should_return_an_error_for_empty_exponent_part() {
+        equals(
+            Lexer::new("0e").to_vec(),
+            Err(SyntaxError {
+                message: String::from("Invalid number, expected digit but got: 'end of file'"),
+                position: 2,
+            }),
+        );
+        equals(
+            Lexer::new("42e ").to_vec(),
+            Err(SyntaxError {
+                message: String::from("Invalid number, expected digit but got: ' '"),
+                position: 3,
+            }),
+        );
+    }
+
+    #[test]
+    fn should_return_an_error_for_name_following_int() {
+        equals(
+            Lexer::new("42hello").to_vec(),
+            Err(SyntaxError {
+                message: String::from("Invalid number, expected digit but got: 'h'"),
+                position: 2,
+            }),
+        );
+    }
+
+    #[test]
+    fn should_return_an_error_for_name_following_float() {
+        equals(
+            Lexer::new("42.43hello").to_vec(),
+            Err(SyntaxError {
+                message: String::from("Invalid number, expected digit but got: 'h'"),
+                position: 5,
+            }),
+        );
+    }
+
+    #[test]
+    fn should_parse_string_tokens() {
+        equals(
+            Lexer::new("\"Hello\" \"\" \"\"\"world\"\"\" \"\"\"\"\"\"").to_vec(),
+            #[cfg_attr(rustfmt, rustfmt_skip)]
+            Ok(vec![
+                Token { kind: TokenKind::SOF,                                     start:  0, end:  0, line: 0, column:  0 },
+                Token { kind: TokenKind::String { value: String::from("Hello") }, start:  0, end:  7, line: 1, column:  1 },
+                Token { kind: TokenKind::String { value: String::from("") },      start:  8, end: 10, line: 1, column:  9 },
+                Token { kind: TokenKind::String { value: String::from("world") }, start: 11, end: 22, line: 1, column: 12 },
+                Token { kind: TokenKind::String { value: String::from("") },      start: 23, end: 29, line: 1, column: 24 },
+                Token { kind: TokenKind::EOF,                                     start: 29, end: 29, line: 1, column: 30 },
+            ]),
+        );
+    }
+
+    #[test]
+    fn should_parse_escaped_characters_in_strings() {
+        equals(
+            Lexer::new("\"Hello \\\" \\\\ \\/ \\b \\f \\n \\r \\t \\u1234\"").to_vec(),
+            #[cfg_attr(rustfmt, rustfmt_skip)]
+            Ok(vec![
+                Token { kind: TokenKind::SOF,                                                                           start:  0, end:  0, line: 0, column:  0 },
+                Token { kind: TokenKind::String { value: String::from("Hello \" \\ / \u{8} \u{c} \n \r \t \u{1234}") }, start:  0, end: 38, line: 1, column:  1 },
+                Token { kind: TokenKind::EOF,                                                                           start: 38, end: 38, line: 1, column: 39 },
+            ]),
+        );
+    }
+
+    #[test]
+    fn should_parse_escaped_triple_quotes_in_block_strings() {
+        equals(
+            Lexer::new("\"\"\"\\\"\"\"\"\"\" \"\"\"escaped \\\"\"\"\"\"\" \"\"\"\\\"\"\" escaped\"\"\" \"\"\"escaped \\\"\"\" escaped\"\"\"").to_vec(),
+            #[cfg_attr(rustfmt, rustfmt_skip)]
+            Ok(vec![
+                Token { kind: TokenKind::SOF,                                                      start:  0, end:  0, line: 0, column:  0 },
+                Token { kind: TokenKind::String { value: String::from("\"\"\"") },                 start:  0, end: 10, line: 1, column:  1 },
+                Token { kind: TokenKind::String { value: String::from("escaped \"\"\"") },         start: 11, end: 29, line: 1, column: 12 },
+                Token { kind: TokenKind::String { value: String::from("\"\"\" escaped") },         start: 30, end: 48, line: 1, column: 31 },
+                Token { kind: TokenKind::String { value: String::from("escaped \"\"\" escaped") }, start: 49, end: 75, line: 1, column: 50 },
+                Token { kind: TokenKind::EOF,                                                      start: 75, end: 75, line: 1, column: 76 },
+            ]),
+        );
+    }
+
+    #[test]
+    fn should_return_an_error_for_invalid_character_escapes() {
+        equals(
+            Lexer::new("\"\\q\"").to_vec(),
+            Err(SyntaxError {
+                message: String::from("Invalid character escape sequence: \\q"),
+                position: 1,
+            }),
+        );
+        equals(
+            Lexer::new("\"\\u\"").to_vec(),
+            Err(SyntaxError {
+                message: String::from("Invalid character escape sequence: \\u\""),
+                position: 1,
+            }),
+        );
+        equals(
+            Lexer::new("\"\\u1\"").to_vec(),
+            Err(SyntaxError {
+                message: String::from("Invalid character escape sequence: \\u1\""),
+                position: 1,
+            }),
+        );
+        equals(
+            Lexer::new("\"\\u12\"").to_vec(),
+            Err(SyntaxError {
+                message: String::from("Invalid character escape sequence: \\u12\""),
+                position: 1,
+            }),
+        );
+        equals(
+            Lexer::new("\"\\u123\"").to_vec(),
+            Err(SyntaxError {
+                message: String::from("Invalid character escape sequence: \\u123\""),
+                position: 1,
+            }),
+        );
+        equals(
+            Lexer::new("\"\\u123z\"").to_vec(),
+            Err(SyntaxError {
+                message: String::from("Invalid character escape sequence: \\u123z"),
+                position: 1,
+            }),
+        );
+    }
+
+    #[test]
+    fn should_return_an_error_for_unterminated_string() {
+        equals(
+            Lexer::new("\"Hello").to_vec(),
+            Err(SyntaxError {
+                message: String::from("Unterminated string"),
+                position: 6,
+            }),
+        );
+        equals(
+            Lexer::new("\"Hello\nworld\"").to_vec(),
+            Err(SyntaxError {
+                message: String::from("Unterminated string"),
+                position: 6,
+            }),
+        );
+        equals(
+            Lexer::new("\"Hello\rworld\"").to_vec(),
+            Err(SyntaxError {
+                message: String::from("Unterminated string"),
+                position: 6,
+            }),
+        );
+        equals(
+            Lexer::new("\"Hello\r\nworld\"").to_vec(),
+            Err(SyntaxError {
+                message: String::from("Unterminated string"),
+                position: 6,
+            }),
+        );
+    }
+
+    #[test]
+    fn should_return_an_error_for_unterminated_block_string() {
+        equals(
+            Lexer::new("\"\"\"Hello").to_vec(),
+            Err(SyntaxError {
+                message: String::from("Unterminated string"),
+                position: 8,
+            }),
+        );
+        equals(
+            Lexer::new("\"\"\"Hello\"").to_vec(),
+            Err(SyntaxError {
+                message: String::from("Unterminated string"),
+                position: 9,
+            }),
+        );
+        equals(
+            Lexer::new("\"\"\"Hello\"\"").to_vec(),
+            Err(SyntaxError {
+                message: String::from("Unterminated string"),
+                position: 10,
+            }),
+        );
     }
 }
