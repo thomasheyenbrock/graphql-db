@@ -193,6 +193,76 @@ impl Lexer<'_> {
         return self.chars.next();
     }
 
+    fn split_by_line_terminator(value: &str) -> Vec<&str> {
+        let mut lines: Vec<&str> = Vec::new();
+        for l1 in value.split("\r\n") {
+            for l2 in l1.split("\r") {
+                for l3 in l2.split("\n") {
+                    lines.push(l3)
+                }
+            }
+        }
+        return lines;
+    }
+
+    fn calculate_indent(value: &str) -> usize {
+        let mut indent = 0;
+        let mut chars = value.chars();
+        let mut next = chars.next();
+        while next == Some(' ') || next == Some('\t') {
+            indent += 1;
+            next = chars.next();
+        }
+        return indent;
+    }
+
+    fn contains_only_whitespace(value: &str) -> bool {
+        return value.chars().all(|c| c == ' ' || c == '\t');
+    }
+
+    fn block_string_value(raw_value: &str) -> String {
+        let mut lines = Lexer::split_by_line_terminator(raw_value);
+
+        let mut common_indent: Option<usize> = None;
+
+        for line in lines.iter().skip(1) {
+            let length = line.len();
+            let indent = Lexer::calculate_indent(line);
+            if indent < length {
+                if common_indent == None || indent < common_indent.unwrap() {
+                    common_indent = Some(indent);
+                }
+            }
+        }
+
+        if common_indent != None && lines.len() > 0 {
+            let common_indent_value = common_indent.unwrap();
+            let mut lines_without_indent = lines
+                .iter()
+                .skip(1)
+                .map(|line| {
+                    if line.len() >= common_indent_value {
+                        &line[common_indent_value..]
+                    } else {
+                        line
+                    }
+                })
+                .collect();
+            lines = vec![lines[0]];
+            lines.append(&mut lines_without_indent);
+        }
+
+        while lines.len() > 0 && Lexer::contains_only_whitespace(lines[0]) {
+            lines.remove(0);
+        }
+
+        while lines.len() > 0 && Lexer::contains_only_whitespace(lines[lines.len() - 1]) {
+            lines.pop();
+        }
+
+        return lines.join("\n");
+    }
+
     fn next_no_error(&mut self) -> Result<Option<Token>, String> {
         if self.line == 0 {
             let sof = Token {
@@ -622,7 +692,7 @@ impl Lexer<'_> {
                                 self.line += 1;
                                 self.column = 1;
                             }
-                            if next == '\n' && value.chars().last() != Some('\r') {
+                            if next == '\n' && value.chars().nth_back(1) != Some('\r') {
                                 self.line += 1;
                                 self.column = 1;
                             }
@@ -651,7 +721,7 @@ impl Lexer<'_> {
 
                         return Ok(Some(Token {
                             kind: TokenKind::String {
-                                value: value[..value.len() - 3].to_string(),
+                                value: Lexer::block_string_value(&value[..value.len() - 3]),
                             },
                             start,
                             end: self.position,
@@ -878,6 +948,42 @@ mod lexer {
             Ok(vec![
                 Token { kind: TokenKind::SOF, start:  0, end:  0, line: 0, column: 0 },
                 Token { kind: TokenKind::EOF, start: 13, end: 13, line: 4, column: 3 },
+            ]),
+        );
+    }
+
+    #[test]
+    fn should_count_lines_correctly() {
+        equals(
+            Lexer::new("\n").to_vec(),
+            #[cfg_attr(rustfmt, rustfmt_skip)]
+            Ok(vec![
+                Token { kind: TokenKind::SOF, start: 0, end: 0, line: 0, column: 0 },
+                Token { kind: TokenKind::EOF, start: 1, end: 1, line: 2, column: 1 },
+            ]),
+        );
+        equals(
+            Lexer::new("\r").to_vec(),
+            #[cfg_attr(rustfmt, rustfmt_skip)]
+            Ok(vec![
+                Token { kind: TokenKind::SOF, start: 0, end: 0, line: 0, column: 0 },
+                Token { kind: TokenKind::EOF, start: 1, end: 1, line: 2, column: 1 },
+            ]),
+        );
+        equals(
+            Lexer::new("\r\n").to_vec(),
+            #[cfg_attr(rustfmt, rustfmt_skip)]
+            Ok(vec![
+                Token { kind: TokenKind::SOF, start: 0, end: 0, line: 0, column: 0 },
+                Token { kind: TokenKind::EOF, start: 2, end: 2, line: 2, column: 1 },
+            ]),
+        );
+        equals(
+            Lexer::new("\n\r").to_vec(),
+            #[cfg_attr(rustfmt, rustfmt_skip)]
+            Ok(vec![
+                Token { kind: TokenKind::SOF, start: 0, end: 0, line: 0, column: 0 },
+                Token { kind: TokenKind::EOF, start: 2, end: 2, line: 3, column: 1 },
             ]),
         );
     }
@@ -1257,6 +1363,28 @@ mod lexer {
                 Token { kind: TokenKind::String { value: String::from("\"\"\" escaped") },         start: 30, end: 48, line: 1, column: 31 },
                 Token { kind: TokenKind::String { value: String::from("escaped \"\"\" escaped") }, start: 49, end: 75, line: 1, column: 50 },
                 Token { kind: TokenKind::EOF,                                                      start: 75, end: 75, line: 1, column: 76 },
+            ]),
+        );
+    }
+
+    #[test]
+    fn should_format_block_string_values() {
+        equals(
+            Lexer::new("\"\"\"\n \t Hello\r\n\r    \tworld\r  \n\t\"\"\"").to_vec(),
+            #[cfg_attr(rustfmt, rustfmt_skip)]
+            Ok(vec![
+                Token { kind: TokenKind::SOF,                                                 start:  0, end:  0, line: 0, column: 0 },
+                Token { kind: TokenKind::String { value: String::from("Hello\n\n \tworld") }, start:  0, end: 33, line: 1, column: 1 },
+                Token { kind: TokenKind::EOF,                                                 start: 33, end: 33, line: 6, column: 5 },
+            ]),
+        );
+        equals(
+            Lexer::new("\"\"\"\n  Hello,\n    World!\n\n  Yours,\n    GraphQL.\n  \"\"\"").to_vec(),
+            #[cfg_attr(rustfmt, rustfmt_skip)]
+            Ok(vec![
+                Token { kind: TokenKind::SOF,                                                                      start:  0, end:  0, line: 0, column: 0 },
+                Token { kind: TokenKind::String { value: String::from("Hello,\n  World!\n\nYours,\n  GraphQL.") }, start:  0, end: 52, line: 1, column: 1 },
+                Token { kind: TokenKind::EOF,                                                                      start: 52, end: 52, line: 7, column: 6 },
             ]),
         );
     }
