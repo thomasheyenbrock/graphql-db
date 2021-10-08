@@ -1,4 +1,5 @@
 use super::lexer;
+use vec1::Vec1;
 
 #[derive(Debug)]
 pub struct StructureError {
@@ -196,7 +197,7 @@ pub enum Selection {
 }
 
 pub struct SelectionSet {
-  pub selections: Vec<Selection>, // TODO: must contain at least one item
+  pub selections: Vec1<Selection>,
   pub loc: Loc,
 }
 
@@ -275,7 +276,7 @@ pub enum Definition {
   SchemaDefinition {
     description: Option<StringValue>,
     directives: Vec<ConstDirective>,
-    operation_types: Vec<OperationTypeDefinition>, // TODO: must contain at least one item
+    operation_types: Vec1<OperationTypeDefinition>,
     loc: Loc,
   },
   ScalarTypeDefinition {
@@ -326,7 +327,7 @@ pub enum Definition {
     name: Name,
     arguments: Vec<InputValueDefinition>,
     repeatable: bool,
-    locations: Vec<DirectiveLocation>, // TODO: must contain at least one item
+    locations: Vec1<DirectiveLocation>,
     loc: Loc,
   },
   SchemaExtension {
@@ -336,7 +337,7 @@ pub enum Definition {
   },
   ScalarTypeExtension {
     name: Name,
-    directives: Vec<ConstDirective>, // TODO: must contain at least one item
+    directives: Vec1<ConstDirective>,
     loc: Loc,
   },
   ObjectTypeExtension {
@@ -374,6 +375,6 @@ pub enum Definition {
 }
 
 pub struct Document {
-  pub definitions: Vec<Definition>, // TODO: must contain at least one item
+  pub definitions: Vec1<Definition>,
   pub loc: Loc,
 }
