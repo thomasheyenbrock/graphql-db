@@ -189,6 +189,21 @@ impl Lexer<'_> {
     }
   }
 
+  fn print_character(c: &char) -> String {
+    let code = *c as i16;
+    if code > 0x001f && code < 0x007f {
+      // Print non-control ASCII characters as is
+      return format!("\"{}\"", c);
+    } else if code == 0x0008 {
+      return String::from("\"\\b\"");
+    } else if code == 0x000c {
+      return String::from("\"\\f\"");
+    } else {
+      // Print upper-case encoding for all other characters
+      return format!("\"\\u{:0>4}\"", format!("{:X}", code));
+    }
+  }
+
   fn next_char(&mut self) -> Option<char> {
     self.position += 1;
     self.column += 1;
@@ -314,8 +329,15 @@ impl Lexer<'_> {
     match self.chars.peek() {
       // ASCII controll characters are not valid source characters
       // (except for CHARACTER TABULATION, LINE FEED, and CARRIAGE RETURN)
-      Some(&('\u{0}'..='\u{8}')) | Some(&('\u{b}'..='\u{c}')) | Some(&('\u{e}'..='\u{1f}')) => {
-        return Err(String::from("Not a valid source character"));
+      character
+      @
+      (Some(&('\u{0}'..='\u{8}'))
+      | Some(&('\u{b}'..='\u{c}'))
+      | Some(&('\u{e}'..='\u{1f}'))) => {
+        return Err(format!(
+          "Cannot contain the invalid character {}.",
+          Lexer::print_character(character.unwrap())
+        ));
       }
       // A comment is an ignored token, but since it does contain human
       // readable information, we append a token to the list where the
@@ -416,7 +438,7 @@ impl Lexer<'_> {
           if self.chars.peek() != Some(&'.') {
             self.position -= index;
             self.column -= index;
-            return Err(String::from("Cannot parse the unexpected character '.'"));
+            return Err(String::from("Cannot parse the unexpected character \".\"."));
           }
           self.next_char();
         }
@@ -560,7 +582,7 @@ impl Lexer<'_> {
           integer_part.push(self.next_char().unwrap());
           if (Some(&'0')..=Some(&'9')).contains(&self.chars.peek()) {
             return Err(format!(
-              "Invalid number, unexpected digit after 0: '{}'",
+              "Invalid number, unexpected digit after 0: \"{}\".",
               self.chars.peek().unwrap()
             ));
           }
@@ -581,11 +603,11 @@ impl Lexer<'_> {
 
           if fractional_part == "." {
             return Err(format!(
-              "Invalid number, expected digit but got: '{}'",
+              "Invalid number, expected digit but got: {}.",
               if self.chars.peek() == None {
-                String::from("end of file")
+                String::from("<EOF>")
               } else {
-                self.chars.peek().unwrap().to_string()
+                format!("\"{}\"", self.chars.peek().unwrap().to_string())
               }
             ));
           }
@@ -614,11 +636,11 @@ impl Lexer<'_> {
             || exponent_part == "E-"
           {
             return Err(format!(
-              "Invalid number, expected digit but got: '{}'",
+              "Invalid number, expected digit but got: {}.",
               if self.chars.peek() == None {
-                String::from("end of file")
+                String::from("<EOF>")
               } else {
-                self.chars.peek().unwrap().to_string()
+                format!("\"{}\"", self.chars.peek().unwrap().to_string())
               }
             ));
           }
@@ -631,7 +653,7 @@ impl Lexer<'_> {
           || self.chars.peek() == Some(&'.')
         {
           return Err(format!(
-            "Invalid number, expected digit but got: '{}'",
+            "Invalid number, expected digit but got: \"{}\".",
             self.chars.peek().unwrap()
           ));
         }
@@ -682,7 +704,7 @@ impl Lexer<'_> {
             let mut passes = 0;
             while !is_done {
               if self.chars.peek() == None {
-                return Err(String::from("Unterminated string"));
+                return Err(String::from("Unterminated string."));
               }
 
               let next = self.next_char().unwrap();
@@ -714,7 +736,7 @@ impl Lexer<'_> {
             }
 
             if value.len() < 3 || value[value.len() - 3..] != String::from("\"\"\"") {
-              return Err(String::from("Unterminated string"));
+              return Err(String::from("Unterminated string."));
             }
 
             return Ok(Some(Token {
@@ -763,7 +785,10 @@ impl Lexer<'_> {
                     if unicode_char == None {
                       self.position -= i + 2;
                       self.column -= i + 2;
-                      return Err(format!("Invalid character escape sequence: \\u{}", unicode));
+                      return Err(format!(
+                        "Invalid character escape sequence: \\u{}.",
+                        unicode
+                      ));
                     }
 
                     unicode.push(unicode_char.unwrap());
@@ -775,14 +800,20 @@ impl Lexer<'_> {
                       if unicode_char == None {
                         self.position -= 6;
                         self.column -= 6;
-                        return Err(format!("Invalid character escape sequence: \\u{}", unicode));
+                        return Err(format!(
+                          "Invalid character escape sequence: \\u{}.",
+                          unicode
+                        ));
                       }
                       value.push(unicode_char.unwrap());
                     }
                     Err(_) => {
                       self.position -= 6;
                       self.column -= 6;
-                      return Err(format!("Invalid character escape sequence: \\u{}", unicode));
+                      return Err(format!(
+                        "Invalid character escape sequence: \\u{}.",
+                        unicode
+                      ));
                     }
                   }
                 }
@@ -790,7 +821,7 @@ impl Lexer<'_> {
                   self.position -= 2;
                   self.column -= 2;
                   return Err(format!(
-                    "Invalid character escape sequence: \\{}",
+                    "Invalid character escape sequence: \\{}.",
                     if character == None {
                       String::from("")
                     } else {
@@ -803,7 +834,7 @@ impl Lexer<'_> {
               // Line feed & carriage return
               self.position -= 1;
               self.column -= 1;
-              return Err(String::from("Unterminated string"));
+              return Err(String::from("Unterminated string."));
             } else {
               // Source character
               value.push(next);
@@ -811,7 +842,7 @@ impl Lexer<'_> {
           }
 
           if self.chars.peek() == None {
-            return Err(String::from("Unterminated string"));
+            return Err(String::from("Unterminated string."));
           }
 
           // Remove closing quote
@@ -826,10 +857,16 @@ impl Lexer<'_> {
           }));
         }
       }
-      None => Err(String::from("Unexpected end of query string")),
+      Some(&'\'') => Err(String::from(
+        "Unexpected single quote character ('), did you mean to use a double quote (\")?",
+      )),
       character => Err(format!(
-        "Cannot parse the unexpected character '{}'",
-        character.unwrap()
+        "Cannot parse the unexpected character {}.",
+        if character == None {
+          String::from("<EOF>")
+        } else {
+          Lexer::print_character(character.unwrap())
+        }
       )),
     }
   }
@@ -1048,7 +1085,21 @@ mod lexer {
     equals(
       Lexer::new("Hello\u{2}world").to_vec(),
       Err(SyntaxError {
-        message: String::from("Not a valid source character"),
+        message: String::from("Cannot contain the invalid character \"\\u0002\"."),
+        position: 5,
+      }),
+    );
+    equals(
+      Lexer::new("Hello\u{8}world").to_vec(),
+      Err(SyntaxError {
+        message: String::from("Cannot contain the invalid character \"\\b\"."),
+        position: 5,
+      }),
+    );
+    equals(
+      Lexer::new("Hello\u{c}world").to_vec(),
+      Err(SyntaxError {
+        message: String::from("Cannot contain the invalid character \"\\f\"."),
         position: 5,
       }),
     );
@@ -1085,14 +1136,14 @@ mod lexer {
     equals(
       Lexer::new("Hello.world").to_vec(),
       Err(SyntaxError {
-        message: String::from("Cannot parse the unexpected character '.'"),
+        message: String::from("Cannot parse the unexpected character \".\"."),
         position: 5,
       }),
     );
     equals(
       Lexer::new("Hello..world").to_vec(),
       Err(SyntaxError {
-        message: String::from("Cannot parse the unexpected character '.'"),
+        message: String::from("Cannot parse the unexpected character \".\"."),
         position: 5,
       }),
     );
@@ -1123,7 +1174,7 @@ mod lexer {
     equals(
       Lexer::new("Hello 42world").to_vec(),
       Err(SyntaxError {
-        message: String::from("Invalid number, expected digit but got: 'w'"),
+        message: String::from("Invalid number, expected digit but got: \"w\"."),
         position: 8,
       }),
     );
@@ -1150,14 +1201,14 @@ mod lexer {
     equals(
       Lexer::new("+0").to_vec(),
       Err(SyntaxError {
-        message: String::from("Cannot parse the unexpected character '+'"),
+        message: String::from("Cannot parse the unexpected character \"+\"."),
         position: 0,
       }),
     );
     equals(
       Lexer::new("+42").to_vec(),
       Err(SyntaxError {
-        message: String::from("Cannot parse the unexpected character '+'"),
+        message: String::from("Cannot parse the unexpected character \"+\"."),
         position: 0,
       }),
     );
@@ -1168,14 +1219,14 @@ mod lexer {
     equals(
       Lexer::new("042").to_vec(),
       Err(SyntaxError {
-        message: String::from("Invalid number, unexpected digit after 0: '4'"),
+        message: String::from("Invalid number, unexpected digit after 0: \"4\"."),
         position: 1,
       }),
     );
     equals(
       Lexer::new("0042").to_vec(),
       Err(SyntaxError {
-        message: String::from("Invalid number, unexpected digit after 0: '0'"),
+        message: String::from("Invalid number, unexpected digit after 0: \"0\"."),
         position: 1,
       }),
     );
@@ -1274,14 +1325,14 @@ mod lexer {
     equals(
       Lexer::new("+0").to_vec(),
       Err(SyntaxError {
-        message: String::from("Cannot parse the unexpected character '+'"),
+        message: String::from("Cannot parse the unexpected character \"+\"."),
         position: 0,
       }),
     );
     equals(
       Lexer::new("+42.43").to_vec(),
       Err(SyntaxError {
-        message: String::from("Cannot parse the unexpected character '+'"),
+        message: String::from("Cannot parse the unexpected character \"+\"."),
         position: 0,
       }),
     );
@@ -1292,14 +1343,14 @@ mod lexer {
     equals(
       Lexer::new("042.43").to_vec(),
       Err(SyntaxError {
-        message: String::from("Invalid number, unexpected digit after 0: '4'"),
+        message: String::from("Invalid number, unexpected digit after 0: \"4\"."),
         position: 1,
       }),
     );
     equals(
       Lexer::new("0042.43").to_vec(),
       Err(SyntaxError {
-        message: String::from("Invalid number, unexpected digit after 0: '0'"),
+        message: String::from("Invalid number, unexpected digit after 0: \"0\"."),
         position: 1,
       }),
     );
@@ -1310,14 +1361,14 @@ mod lexer {
     equals(
       Lexer::new("0.").to_vec(),
       Err(SyntaxError {
-        message: String::from("Invalid number, expected digit but got: 'end of file'"),
+        message: String::from("Invalid number, expected digit but got: <EOF>."),
         position: 2,
       }),
     );
     equals(
       Lexer::new("42.e44").to_vec(),
       Err(SyntaxError {
-        message: String::from("Invalid number, expected digit but got: 'e'"),
+        message: String::from("Invalid number, expected digit but got: \"e\"."),
         position: 3,
       }),
     );
@@ -1328,14 +1379,14 @@ mod lexer {
     equals(
       Lexer::new("0e").to_vec(),
       Err(SyntaxError {
-        message: String::from("Invalid number, expected digit but got: 'end of file'"),
+        message: String::from("Invalid number, expected digit but got: <EOF>."),
         position: 2,
       }),
     );
     equals(
       Lexer::new("42e ").to_vec(),
       Err(SyntaxError {
-        message: String::from("Invalid number, expected digit but got: ' '"),
+        message: String::from("Invalid number, expected digit but got: \" \"."),
         position: 3,
       }),
     );
@@ -1346,7 +1397,7 @@ mod lexer {
     equals(
       Lexer::new("42hello").to_vec(),
       Err(SyntaxError {
-        message: String::from("Invalid number, expected digit but got: 'h'"),
+        message: String::from("Invalid number, expected digit but got: \"h\"."),
         position: 2,
       }),
     );
@@ -1357,7 +1408,7 @@ mod lexer {
     equals(
       Lexer::new("42.43hello").to_vec(),
       Err(SyntaxError {
-        message: String::from("Invalid number, expected digit but got: 'h'"),
+        message: String::from("Invalid number, expected digit but got: \"h\"."),
         position: 5,
       }),
     );
@@ -1435,42 +1486,42 @@ mod lexer {
     equals(
       Lexer::new("\"\\q\"").to_vec(),
       Err(SyntaxError {
-        message: String::from("Invalid character escape sequence: \\q"),
+        message: String::from("Invalid character escape sequence: \\q."),
         position: 1,
       }),
     );
     equals(
       Lexer::new("\"\\u\"").to_vec(),
       Err(SyntaxError {
-        message: String::from("Invalid character escape sequence: \\u\""),
+        message: String::from("Invalid character escape sequence: \\u\"."),
         position: 1,
       }),
     );
     equals(
       Lexer::new("\"\\u1\"").to_vec(),
       Err(SyntaxError {
-        message: String::from("Invalid character escape sequence: \\u1\""),
+        message: String::from("Invalid character escape sequence: \\u1\"."),
         position: 1,
       }),
     );
     equals(
       Lexer::new("\"\\u12\"").to_vec(),
       Err(SyntaxError {
-        message: String::from("Invalid character escape sequence: \\u12\""),
+        message: String::from("Invalid character escape sequence: \\u12\"."),
         position: 1,
       }),
     );
     equals(
       Lexer::new("\"\\u123\"").to_vec(),
       Err(SyntaxError {
-        message: String::from("Invalid character escape sequence: \\u123\""),
+        message: String::from("Invalid character escape sequence: \\u123\"."),
         position: 1,
       }),
     );
     equals(
       Lexer::new("\"\\u123z\"").to_vec(),
       Err(SyntaxError {
-        message: String::from("Invalid character escape sequence: \\u123z"),
+        message: String::from("Invalid character escape sequence: \\u123z."),
         position: 1,
       }),
     );
@@ -1481,28 +1532,28 @@ mod lexer {
     equals(
       Lexer::new("\"Hello").to_vec(),
       Err(SyntaxError {
-        message: String::from("Unterminated string"),
+        message: String::from("Unterminated string."),
         position: 6,
       }),
     );
     equals(
       Lexer::new("\"Hello\nworld\"").to_vec(),
       Err(SyntaxError {
-        message: String::from("Unterminated string"),
+        message: String::from("Unterminated string."),
         position: 6,
       }),
     );
     equals(
       Lexer::new("\"Hello\rworld\"").to_vec(),
       Err(SyntaxError {
-        message: String::from("Unterminated string"),
+        message: String::from("Unterminated string."),
         position: 6,
       }),
     );
     equals(
       Lexer::new("\"Hello\r\nworld\"").to_vec(),
       Err(SyntaxError {
-        message: String::from("Unterminated string"),
+        message: String::from("Unterminated string."),
         position: 6,
       }),
     );
@@ -1513,22 +1564,53 @@ mod lexer {
     equals(
       Lexer::new("\"\"\"Hello").to_vec(),
       Err(SyntaxError {
-        message: String::from("Unterminated string"),
+        message: String::from("Unterminated string."),
         position: 8,
       }),
     );
     equals(
       Lexer::new("\"\"\"Hello\"").to_vec(),
       Err(SyntaxError {
-        message: String::from("Unterminated string"),
+        message: String::from("Unterminated string."),
         position: 9,
       }),
     );
     equals(
       Lexer::new("\"\"\"Hello\"\"").to_vec(),
       Err(SyntaxError {
-        message: String::from("Unterminated string"),
+        message: String::from("Unterminated string."),
         position: 10,
+      }),
+    );
+  }
+
+  #[test]
+  fn should_return_an_error_for_unexpected_characters() {
+    equals(
+      Lexer::new("Hello\u{25}world").to_vec(),
+      Err(SyntaxError {
+        message: String::from("Cannot parse the unexpected character \"%\"."),
+        position: 5,
+      }),
+    );
+    equals(
+      Lexer::new("Hello\u{1234}world").to_vec(),
+      Err(SyntaxError {
+        message: String::from("Cannot parse the unexpected character \"\\u1234\"."),
+        position: 5,
+      }),
+    );
+  }
+
+  #[test]
+  fn should_return_an_error_for_single_quote() {
+    equals(
+      Lexer::new("'").to_vec(),
+      Err(SyntaxError {
+        message: String::from(
+          "Unexpected single quote character ('), did you mean to use a double quote (\")?",
+        ),
+        position: 0,
       }),
     );
   }
