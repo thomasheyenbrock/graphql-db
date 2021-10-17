@@ -413,3 +413,78 @@ pub struct Document {
   pub definitions: Vec1<Definition>,
   pub loc: Loc,
 }
+
+pub struct Parser<'a> {
+  lexer: lexer::Lexer<'a>,
+}
+
+impl Parser<'_> {
+  pub fn new(query: &str) -> Parser {
+    Parser {
+      lexer: lexer::Lexer::new(query),
+    }
+  }
+
+  fn parse_token(&mut self, token_kind: lexer::TokenKind) -> Result<lexer::Token, StructureError> {
+    match self.lexer.next() {
+      Ok(maybe_token) => match maybe_token {
+        None => Err(StructureError {
+          message: format!("Expected {}, got no token", token_kind),
+          position: self.lexer.get_position(),
+        }),
+        Some(token) => {
+          if token.kind == token_kind {
+            Ok(token)
+          } else {
+            Err(StructureError {
+              message: format!("Expected {}, got {}", token_kind, token.kind),
+              position: self.lexer.get_position(),
+            })
+          }
+        }
+      },
+      Err(error) => Err(StructureError {
+        message: error.message,
+        position: self.lexer.get_position(),
+      }),
+    }
+  }
+
+  fn parse_definition(&mut self) -> Result<Definition, StructureError> {
+    Err(StructureError {
+      message: String::from("TODO:"),
+      position: -1,
+    })
+  }
+
+  pub fn parse(&mut self) -> Result<Document, StructureError> {
+    match self.parse_token(lexer::TokenKind::SOF) {
+      Ok(start_token) => match self.parse_definition() {
+        Err(error) => Err(error),
+        Ok(first_definition) => {
+          let mut definitions = vec1![first_definition];
+          while self.lexer.has_more() {
+            match self.parse_definition() {
+              Err(error) => return Err(error),
+              Ok(definition) => {
+                definitions.push(definition);
+              }
+            }
+          }
+
+          match self.parse_token(lexer::TokenKind::EOF) {
+            Ok(end_token) => Ok(Document {
+              definitions,
+              loc: Loc {
+                start_token,
+                end_token,
+              },
+            }),
+            Err(error) => Err(error),
+          }
+        }
+      },
+      Err(error) => Err(error),
+    }
+  }
+}
