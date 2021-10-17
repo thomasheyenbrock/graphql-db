@@ -7,100 +7,119 @@ pub struct StructureError {
   pub position: i32,
 }
 
+#[derive(Debug)]
 pub struct Loc {
   pub start_token: lexer::Token,
   pub end_token: lexer::Token,
 }
 
 #[allow(non_camel_case_types)]
+#[derive(Debug)]
 pub enum OperationType {
   query,
   mutation,
   subscription,
 }
 
+#[derive(Debug)]
 pub struct Name {
   pub value: String,
   pub loc: Loc,
 }
 
+#[derive(Debug)]
 pub struct NamedType {
   pub name: Name,
   pub loc: Loc,
 }
 
+#[derive(Debug)]
 pub struct ListType {
   pub gql_type: Box<Type>,
   pub loc: Loc,
 }
 
+#[derive(Debug)]
 pub struct NonNullType {
   pub gql_type: NullableType,
   pub loc: Loc,
 }
 
+#[derive(Debug)]
 pub enum NullableType {
   NamedType(NamedType),
   ListType(ListType),
 }
 
+#[derive(Debug)]
 pub enum Type {
   NamedType(NamedType),
   ListType(ListType),
   NonNullType(NonNullType),
 }
 
+#[derive(Debug)]
 pub struct Variable {
   pub name: Name,
   pub loc: Loc,
 }
 
+#[derive(Debug)]
 pub struct IntValue {
   pub value: String,
   pub loc: Loc,
 }
 
+#[derive(Debug)]
 pub struct FloatValue {
   pub value: String,
   pub loc: Loc,
 }
 
+#[derive(Debug)]
 pub struct StringValue {
   pub value: String,
   pub block: bool,
   pub loc: Loc,
 }
 
+#[derive(Debug)]
 pub struct BooleanValue {
   pub value: bool,
   pub loc: Loc,
 }
 
+#[derive(Debug)]
 pub struct NullValue {
   pub loc: Loc,
 }
 
+#[derive(Debug)]
 pub struct EnumValue {
   pub value: String,
   pub loc: Loc,
 }
 
+#[derive(Debug)]
 pub struct ListValue {
   pub values: Vec<Value>,
   pub loc: Loc,
 }
 
+#[derive(Debug)]
 pub struct ObjectField {
   pub name: Name,
   pub value: Value,
   pub loc: Loc,
 }
 
+#[derive(Debug)]
 pub struct ObjectValue {
   pub fields: Vec<ObjectField>,
   pub loc: Loc,
 }
 
+#[derive(Debug)]
 pub enum Value {
   Variable(Variable),
   IntValue(IntValue),
@@ -113,22 +132,26 @@ pub enum Value {
   ObjectValue(ObjectValue),
 }
 
+#[derive(Debug)]
 pub struct ConstListValue {
   pub values: Vec<ConstValue>,
   pub loc: Loc,
 }
 
+#[derive(Debug)]
 pub struct ConstObjectField {
   pub name: Name,
   pub value: ConstValue,
   pub loc: Loc,
 }
 
+#[derive(Debug)]
 pub struct ConstObjectValue {
   pub fields: Vec<ConstObjectField>,
   pub loc: Loc,
 }
 
+#[derive(Debug)]
 pub enum ConstValue {
   IntValue(IntValue),
   FloatValue(FloatValue),
@@ -140,30 +163,35 @@ pub enum ConstValue {
   ObjectValue(ConstObjectValue),
 }
 
+#[derive(Debug)]
 pub struct Argument {
   pub name: Name,
   pub value: Value,
   pub loc: Loc,
 }
 
+#[derive(Debug)]
 pub struct ConstArgument {
   pub name: Name,
   pub value: ConstValue,
   pub loc: Loc,
 }
 
+#[derive(Debug)]
 pub struct Directive {
   pub name: Name,
   pub arguments: Vec<Argument>,
   pub loc: Loc,
 }
 
+#[derive(Debug)]
 pub struct ConstDirective {
   pub name: Name,
   pub arguments: Vec<ConstArgument>,
   pub loc: Loc,
 }
 
+#[derive(Debug)]
 pub struct VariableDefinition {
   pub variable: Variable,
   pub gql_type: Type,
@@ -172,6 +200,7 @@ pub struct VariableDefinition {
   pub loc: Loc,
 }
 
+#[derive(Debug)]
 pub enum Selection {
   Field {
     name: Name,
@@ -194,17 +223,20 @@ pub enum Selection {
   },
 }
 
+#[derive(Debug)]
 pub struct SelectionSet {
   pub selections: Vec1<Selection>,
   pub loc: Loc,
 }
 
+#[derive(Debug)]
 pub struct OperationTypeDefinition {
   pub operation: OperationType,
   pub gql_type: NamedType,
   pub loc: Loc,
 }
 
+#[derive(Debug)]
 pub struct InputValueDefinition {
   pub description: Option<StringValue>,
   pub name: Name,
@@ -214,6 +246,7 @@ pub struct InputValueDefinition {
   pub loc: Loc,
 }
 
+#[derive(Debug)]
 pub struct FieldDefinition {
   pub description: Option<StringValue>,
   pub name: Name,
@@ -223,6 +256,7 @@ pub struct FieldDefinition {
   pub loc: Loc,
 }
 
+#[derive(Debug)]
 pub struct EnumValueDefinition {
   pub description: Option<StringValue>,
   pub enum_value: EnumValue,
@@ -231,6 +265,7 @@ pub struct EnumValueDefinition {
 }
 
 #[allow(non_camel_case_types)]
+#[derive(Debug)]
 pub enum DirectiveLocation {
   // Executable
   QUERY,
@@ -255,6 +290,7 @@ pub enum DirectiveLocation {
   INPUT_FIELD_DEFINITION,
 }
 
+#[derive(Debug)]
 pub enum Definition {
   OperationDefinition {
     operation: OperationType,
@@ -372,6 +408,7 @@ pub enum Definition {
   },
 }
 
+#[derive(Debug)]
 pub struct Document {
   pub definitions: Vec1<Definition>,
   pub loc: Loc,
