@@ -171,6 +171,7 @@ pub struct Lexer<'a> {
     position: i32,
     line: i32,
     column: i32,
+    peeked: Option<Token>,
     error: Option<String>,
     is_done: bool,
 }
@@ -182,6 +183,7 @@ impl Lexer<'_> {
             position: 0,
             line: 0,
             column: 0,
+            peeked: None,
             error: None,
             is_done: false,
         }
@@ -848,23 +850,73 @@ impl Lexer<'_> {
     }
 
     pub fn next(&mut self) -> Result<Option<Token>, SyntaxError> {
-        match &self.error {
-            // Continue looking for the next token if there is no error
-            None => match self.next_no_error() {
-                Ok(token) => Ok(token),
-                Err(error) => {
-                    self.error = Some(error.to_string());
-                    return Err(SyntaxError {
-                        message: error.to_string(),
-                        position: self.position,
-                    });
-                }
-            },
-            // If there already is an error, continue returning the error
-            err => Err(SyntaxError {
-                message: String::from(err.as_ref().unwrap()),
+        // If there already is an error, continue returning the error
+        if self.error != None {
+            return Err(SyntaxError {
+                message: String::from((&self.error).as_ref().unwrap()),
                 position: self.position,
-            }),
+            });
+        }
+
+        // If already peeked, then return the peeked token
+        if self.peeked != None {
+            let peeked = std::mem::take(&mut self.peeked);
+            self.peeked = None;
+            return Ok(peeked);
+        }
+
+        match self.next_no_error() {
+            Ok(token) => Ok(token),
+            Err(error) => {
+                self.error = Some(error.to_string());
+                return Err(SyntaxError {
+                    message: error.to_string(),
+                    position: self.position,
+                });
+            }
+        }
+    }
+
+    pub fn peek(&mut self) -> Result<Option<Token>, SyntaxError> {
+        // If there already is an error, continue returning the error
+        if self.error != None {
+            return Err(SyntaxError {
+                message: String::from((&self.error).as_ref().unwrap()),
+                position: self.position,
+            });
+        }
+
+        // If already peeked, then return the peeked token
+        if self.peeked != None {
+            let peeked = std::mem::take(&mut self.peeked);
+            return Ok(peeked);
+        }
+
+        match self.next_no_error() {
+            Ok(mut token) => {
+                self.peeked = std::mem::take(&mut token);
+                return Ok(token);
+            }
+            Err(error) => {
+                self.error = Some(error.to_string());
+                return Err(SyntaxError {
+                    message: error.to_string(),
+                    position: self.position,
+                });
+            }
+        }
+    }
+
+    pub fn has_more(&mut self) -> bool {
+        match self.peek() {
+            Err(_) => false,
+            Ok(token) => match token {
+                None => false,
+                token => match token.unwrap().kind {
+                    TokenKind::EOF => false,
+                    _ => true,
+                },
+            },
         }
     }
 
@@ -882,6 +934,10 @@ impl Lexer<'_> {
             }
         }
         return Ok(token_vec);
+    }
+
+    pub fn get_position(&self) -> i32 {
+        return self.position;
     }
 }
 
