@@ -8,8 +8,6 @@ pub struct StructureError {
 }
 
 pub struct Loc {
-  pub start: i32,
-  pub end: i32,
   pub start_token: lexer::Token,
   pub end_token: lexer::Token,
 }
