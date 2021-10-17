@@ -414,6 +414,17 @@ pub struct Document {
   pub loc: Loc,
 }
 
+enum OperationTypeWithShorthand {
+  Shorthand,
+  NonShorthand { operation_type: OperationType },
+}
+
+enum TypeModifier {
+  Description { token: lexer::Token },
+  Extension,
+  None,
+}
+
 pub struct Parser<'a> {
   lexer: lexer::Lexer<'a>,
 }
@@ -438,33 +449,292 @@ impl Parser<'_> {
           } else {
             Err(StructureError {
               message: format!("Expected {}, got {}", token_kind, token.kind),
-              position: self.lexer.get_position(),
+              position: token.start,
             })
           }
         }
       },
       Err(error) => Err(StructureError {
         message: error.message,
-        position: self.lexer.get_position(),
+        position: error.position,
       }),
     }
   }
 
-  fn parse_definition(&mut self) -> Result<Definition, StructureError> {
+  fn parse_operation_definition(
+    &mut self,
+    operation_type: OperationTypeWithShorthand,
+  ) -> Result<Definition, StructureError> {
     Err(StructureError {
       message: String::from("TODO:"),
       position: -1,
     })
   }
 
+  fn parse_fragment_definition(&mut self) -> Result<Definition, StructureError> {
+    Err(StructureError {
+      message: String::from("TODO:"),
+      position: -1,
+    })
+  }
+
+  fn parse_schema_definition(
+    &mut self,
+    description: Option<lexer::Token>,
+  ) -> Result<Definition, StructureError> {
+    Err(StructureError {
+      message: String::from("TODO:"),
+      position: -1,
+    })
+  }
+
+  fn parse_scalar_type_definition(
+    &mut self,
+    description: Option<lexer::Token>,
+  ) -> Result<Definition, StructureError> {
+    Err(StructureError {
+      message: String::from("TODO:"),
+      position: -1,
+    })
+  }
+
+  fn parse_object_type_definition(
+    &mut self,
+    description: Option<lexer::Token>,
+  ) -> Result<Definition, StructureError> {
+    Err(StructureError {
+      message: String::from("TODO:"),
+      position: -1,
+    })
+  }
+
+  fn parse_interface_type_definition(
+    &mut self,
+    description: Option<lexer::Token>,
+  ) -> Result<Definition, StructureError> {
+    Err(StructureError {
+      message: String::from("TODO:"),
+      position: -1,
+    })
+  }
+
+  fn parse_union_type_definition(
+    &mut self,
+    description: Option<lexer::Token>,
+  ) -> Result<Definition, StructureError> {
+    Err(StructureError {
+      message: String::from("TODO:"),
+      position: -1,
+    })
+  }
+
+  fn parse_enum_type_definition(
+    &mut self,
+    description: Option<lexer::Token>,
+  ) -> Result<Definition, StructureError> {
+    Err(StructureError {
+      message: String::from("TODO:"),
+      position: -1,
+    })
+  }
+
+  fn parse_input_object_type_definition(
+    &mut self,
+    description: Option<lexer::Token>,
+  ) -> Result<Definition, StructureError> {
+    Err(StructureError {
+      message: String::from("TODO:"),
+      position: -1,
+    })
+  }
+
+  fn parse_directive_definition(
+    &mut self,
+    description: Option<lexer::Token>,
+  ) -> Result<Definition, StructureError> {
+    Err(StructureError {
+      message: String::from("TODO:"),
+      position: -1,
+    })
+  }
+
+  fn parse_schema_extension(&mut self) -> Result<Definition, StructureError> {
+    Err(StructureError {
+      message: String::from("TODO:"),
+      position: -1,
+    })
+  }
+
+  fn parse_scalar_extension(&mut self) -> Result<Definition, StructureError> {
+    Err(StructureError {
+      message: String::from("TODO:"),
+      position: -1,
+    })
+  }
+
+  fn parse_object_type_extension(&mut self) -> Result<Definition, StructureError> {
+    Err(StructureError {
+      message: String::from("TODO:"),
+      position: -1,
+    })
+  }
+
+  fn parse_interface_type_extension(&mut self) -> Result<Definition, StructureError> {
+    Err(StructureError {
+      message: String::from("TODO:"),
+      position: -1,
+    })
+  }
+
+  fn parse_union_type_extension(&mut self) -> Result<Definition, StructureError> {
+    Err(StructureError {
+      message: String::from("TODO:"),
+      position: -1,
+    })
+  }
+
+  fn parse_enum_type_extension(&mut self) -> Result<Definition, StructureError> {
+    Err(StructureError {
+      message: String::from("TODO:"),
+      position: -1,
+    })
+  }
+
+  fn parse_input_object_type_extension(&mut self) -> Result<Definition, StructureError> {
+    Err(StructureError {
+      message: String::from("TODO:"),
+      position: -1,
+    })
+  }
+
+  fn parse_definition(&mut self, modifier: TypeModifier) -> Result<Definition, StructureError> {
+    match self.lexer.next() {
+      Ok(maybe_token) => match maybe_token {
+        None => Err(StructureError {
+          message: String::from("Expected definition, got no token"),
+          position: self.lexer.get_position(),
+        }),
+        Some(token) => match token.kind {
+          lexer::TokenKind::CurlyBracketOpening => {
+            self.parse_operation_definition(OperationTypeWithShorthand::Shorthand)
+          }
+          lexer::TokenKind::Name { value } => {
+            if value == "query" && matches!(modifier, TypeModifier::None) {
+              self.parse_operation_definition(OperationTypeWithShorthand::NonShorthand {
+                operation_type: OperationType::query,
+              })
+            } else if value == "mutation" && matches!(modifier, TypeModifier::None) {
+              self.parse_operation_definition(OperationTypeWithShorthand::NonShorthand {
+                operation_type: OperationType::mutation,
+              })
+            } else if value == "subscription" && matches!(modifier, TypeModifier::None) {
+              self.parse_operation_definition(OperationTypeWithShorthand::NonShorthand {
+                operation_type: OperationType::subscription,
+              })
+            } else if value == "fragment" && matches!(modifier, TypeModifier::None) {
+              self.parse_fragment_definition()
+            } else if value == "schema" {
+              match modifier {
+                TypeModifier::None => self.parse_schema_definition(None),
+                TypeModifier::Description { token } => self.parse_schema_definition(Some(token)),
+                TypeModifier::Extension => self.parse_schema_extension(),
+              }
+            } else if value == "scalar" && !matches!(modifier, TypeModifier::Extension) {
+              match modifier {
+                TypeModifier::None => self.parse_scalar_type_definition(None),
+                TypeModifier::Description { token } => {
+                  self.parse_scalar_type_definition(Some(token))
+                }
+                TypeModifier::Extension => self.parse_scalar_extension(),
+              }
+            } else if value == "type" && !matches!(modifier, TypeModifier::Extension) {
+              match modifier {
+                TypeModifier::None => self.parse_object_type_definition(None),
+                TypeModifier::Description { token } => {
+                  self.parse_object_type_definition(Some(token))
+                }
+                TypeModifier::Extension => self.parse_object_type_extension(),
+              }
+            } else if value == "interface" && !matches!(modifier, TypeModifier::Extension) {
+              match modifier {
+                TypeModifier::None => self.parse_interface_type_definition(None),
+                TypeModifier::Description { token } => {
+                  self.parse_interface_type_definition(Some(token))
+                }
+                TypeModifier::Extension => self.parse_interface_type_extension(),
+              }
+            } else if value == "union" && !matches!(modifier, TypeModifier::Extension) {
+              match modifier {
+                TypeModifier::None => self.parse_union_type_definition(None),
+                TypeModifier::Description { token } => {
+                  self.parse_union_type_definition(Some(token))
+                }
+                TypeModifier::Extension => self.parse_union_type_extension(),
+              }
+            } else if value == "enum" && !matches!(modifier, TypeModifier::Extension) {
+              match modifier {
+                TypeModifier::None => self.parse_enum_type_definition(None),
+                TypeModifier::Description { token } => self.parse_enum_type_definition(Some(token)),
+                TypeModifier::Extension => self.parse_enum_type_extension(),
+              }
+            } else if value == "input" && !matches!(modifier, TypeModifier::Extension) {
+              match modifier {
+                TypeModifier::None => self.parse_input_object_type_definition(None),
+                TypeModifier::Description { token } => {
+                  self.parse_input_object_type_definition(Some(token))
+                }
+                TypeModifier::Extension => self.parse_input_object_type_extension(),
+              }
+            } else if value == "directive" && !matches!(modifier, TypeModifier::Extension) {
+              match modifier {
+                TypeModifier::None => self.parse_directive_definition(None),
+                TypeModifier::Description { token } => self.parse_directive_definition(Some(token)),
+                TypeModifier::Extension => Err(StructureError {
+                  message: String::from("Unexpected name \"directive\""),
+                  position: token.start,
+                }),
+              }
+            } else if value == "extend" && matches!(modifier, TypeModifier::None) {
+              self.parse_definition(TypeModifier::Extension)
+            } else {
+              Err(StructureError {
+                message: format!("Unexpected name \"{}\"", value),
+                position: token.start,
+              })
+            }
+          }
+          lexer::TokenKind::String { value: _ } => {
+            self.parse_definition(TypeModifier::Description { token })
+          }
+          lexer::TokenKind::Int { value } => Err(StructureError {
+            message: format!("Unexpected Int \"{}\".", value),
+            position: token.start,
+          }),
+          lexer::TokenKind::Float { value } => Err(StructureError {
+            message: format!("Unexpected Float \"{}\".", value),
+            position: token.start,
+          }),
+          kind => Err(StructureError {
+            message: format!("Unexpected \"{}\".", kind),
+            position: token.start,
+          }),
+        },
+      },
+      Err(error) => Err(StructureError {
+        message: error.message,
+        position: error.position,
+      }),
+    }
+  }
+
   pub fn parse(&mut self) -> Result<Document, StructureError> {
     match self.parse_token(lexer::TokenKind::SOF) {
-      Ok(start_token) => match self.parse_definition() {
+      Ok(start_token) => match self.parse_definition(TypeModifier::None) {
         Err(error) => Err(error),
         Ok(first_definition) => {
           let mut definitions = vec1![first_definition];
           while self.lexer.has_more() {
-            match self.parse_definition() {
+            match self.parse_definition(TypeModifier::None) {
               Err(error) => return Err(error),
               Ok(definition) => {
                 definitions.push(definition);
