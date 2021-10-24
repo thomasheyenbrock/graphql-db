@@ -161,6 +161,7 @@ pub struct Lexer<'a> {
   line: usize,
   column: usize,
   peeked: Option<Token>,
+  previous_position: usize,
   error: Option<String>,
   is_done: bool,
 }
@@ -173,6 +174,7 @@ impl<'a> Lexer<'a> {
       line: 0,
       column: 0,
       peeked: None,
+      previous_position: 0,
       error: None,
       is_done: false,
     }
@@ -824,9 +826,10 @@ impl<'a> Lexer<'a> {
 
     // If already peeked, then return the peeked token
     if self.peeked != None {
-      let peeked = std::mem::take(&mut self.peeked);
-      return Ok(peeked);
+      return Ok(self.peeked.clone());
     }
+
+    self.previous_position = self.position;
 
     match self.next_token() {
       Err(message) => {
@@ -836,8 +839,8 @@ impl<'a> Lexer<'a> {
           position: self.position,
         });
       }
-      Ok(mut token) => {
-        self.peeked = std::mem::take(&mut token);
+      Ok(token) => {
+        self.peeked = token.clone();
         return Ok(token);
       }
     }
@@ -857,7 +860,10 @@ impl<'a> Lexer<'a> {
   }
 
   pub fn get_position(&self) -> usize {
-    self.position
+    match self.peeked {
+      None => self.position,
+      _ => self.previous_position,
+    }
   }
 }
 
