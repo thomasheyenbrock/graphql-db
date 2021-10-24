@@ -431,16 +431,21 @@ impl Parser<'_> {
     }
   }
 
-  fn parse_token(&mut self, token_kind: lexer::TokenKind) -> Result<lexer::Token, SyntaxError> {
-    let maybe_token = self.lexer.next()?;
-    if maybe_token == None {
-      return Err(SyntaxError {
-        message: format!("Expected {}, got no token", token_kind),
+  fn next_token(&mut self, expected: Option<&str>) -> Result<lexer::Token, SyntaxError> {
+    match self.lexer.next()? {
+      None => Err(SyntaxError {
+        message: match expected {
+          None => String::from("Unexpected <EOF>."),
+          Some(expected) => format!("Expected {}, found <EOF>.", expected),
+        },
         position: self.lexer.get_position(),
-      });
+      }),
+      Some(token) => Ok(token),
     }
+  }
 
-    let token = maybe_token.unwrap();
+  fn parse_token(&mut self, token_kind: lexer::TokenKind) -> Result<lexer::Token, SyntaxError> {
+    let token = self.next_token(Some(&format!("{}", token_kind)))?;
     if token.kind == token_kind {
       Ok(token)
     } else {
@@ -598,15 +603,7 @@ impl Parser<'_> {
   }
 
   fn parse_definition(&mut self, modifier: TypeModifier) -> Result<Definition, SyntaxError> {
-    let maybe_token = self.lexer.next()?;
-    if maybe_token == None {
-      return Err(SyntaxError {
-        message: String::from("Expected definition, got no token"),
-        position: self.lexer.get_position(),
-      });
-    }
-
-    let token = maybe_token.unwrap();
+    let token = self.next_token(None)?;
     match token.kind {
       lexer::TokenKind::CurlyBracketOpening => {
         self.parse_operation_definition(OperationTypeWithShorthand::Shorthand)
