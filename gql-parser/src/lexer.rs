@@ -4,14 +4,14 @@ fn print_character(c: &char) -> String {
   let code = *c as i16;
   if code > 0x001f && code < 0x007f {
     // Print non-control ASCII characters as is
-    return format!("\"{}\"", c);
+    format!("\"{}\"", c)
   } else if code == 0x0008 {
-    return String::from("\"\\b\"");
+    String::from("\"\\b\"")
   } else if code == 0x000c {
-    return String::from("\"\\f\"");
+    String::from("\"\\f\"")
   } else {
     // Print upper-case encoding for all other characters
-    return format!("\"\\u{:0>4}\"", format!("{:X}", code));
+    format!("\"\\u{:0>4}\"", format!("{:X}", code))
   }
 }
 
@@ -24,7 +24,7 @@ fn split_by_line_terminator(value: &str) -> Vec<&str> {
       }
     }
   }
-  return lines;
+  lines
 }
 
 fn calculate_indent(value: &str) -> usize {
@@ -35,11 +35,11 @@ fn calculate_indent(value: &str) -> usize {
     indent += 1;
     next = chars.next();
   }
-  return indent;
+  indent
 }
 
 fn contains_only_whitespace(value: &str) -> bool {
-  return value.chars().all(|c| c == ' ' || c == '\t');
+  value.chars().all(|c| c == ' ' || c == '\t')
 }
 
 fn block_string_value(raw_value: &str) -> String {
@@ -82,7 +82,7 @@ fn block_string_value(raw_value: &str) -> String {
     lines.pop();
   }
 
-  return lines.join("\n");
+  lines.join("\n")
 }
 
 #[derive(Debug, PartialEq)]
@@ -170,7 +170,7 @@ impl Lexer<'_> {
   fn next_char(&mut self) -> Option<char> {
     self.position += 1;
     self.column += 1;
-    return self.chars.next();
+    self.chars.next()
   }
 
   fn peek_char(&mut self) -> Option<&char> {
@@ -230,12 +230,10 @@ impl Lexer<'_> {
       @
       (Some(&('\u{0}'..='\u{8}'))
       | Some(&('\u{b}'..='\u{c}'))
-      | Some(&('\u{e}'..='\u{1f}'))) => {
-        return Err(format!(
-          "Cannot contain the invalid character {}.",
-          print_character(character.unwrap())
-        ));
-      }
+      | Some(&('\u{e}'..='\u{1f}'))) => Err(format!(
+        "Cannot contain the invalid character {}.",
+        print_character(character.unwrap())
+      )),
       // A comment is an ignored token, but since it does contain human
       // readable information, we append a token to the list where the
       // value contains the list of comment chars.
@@ -256,13 +254,13 @@ impl Lexer<'_> {
           value.push(self.next_char().unwrap());
         }
 
-        return Ok(Some(Token {
+        Ok(Some(Token {
           kind: TokenKind::Comment { value },
           start,
           end: self.position,
           line: self.line,
           column: start_column,
-        }));
+        }))
       }
       // Punctuators
       Some(&'!') => {
@@ -274,7 +272,7 @@ impl Lexer<'_> {
           column: self.column,
         };
         self.next_char();
-        return Ok(Some(token));
+        Ok(Some(token))
       }
       Some(&'$') => {
         let token = Token {
@@ -285,7 +283,7 @@ impl Lexer<'_> {
           column: self.column,
         };
         self.next_char();
-        return Ok(Some(token));
+        Ok(Some(token))
       }
       Some(&'&') => {
         let token = Token {
@@ -296,7 +294,7 @@ impl Lexer<'_> {
           column: self.column,
         };
         self.next_char();
-        return Ok(Some(token));
+        Ok(Some(token))
       }
       Some(&'(') => {
         let token = Token {
@@ -307,7 +305,7 @@ impl Lexer<'_> {
           column: self.column,
         };
         self.next_char();
-        return Ok(Some(token));
+        Ok(Some(token))
       }
       Some(&')') => {
         let token = Token {
@@ -318,7 +316,7 @@ impl Lexer<'_> {
           column: self.column,
         };
         self.next_char();
-        return Ok(Some(token));
+        Ok(Some(token))
       }
       Some(&'.') => {
         // At this point we expect to see two more dots as the only
@@ -339,13 +337,13 @@ impl Lexer<'_> {
           self.next_char();
         }
 
-        return Ok(Some(Token {
+        Ok(Some(Token {
           kind: TokenKind::Spread,
           start: self.position - 3,
           end: self.position,
           line: self.line,
           column: self.column - 3,
-        }));
+        }))
       }
       Some(&':') => {
         let token = Token {
@@ -356,7 +354,7 @@ impl Lexer<'_> {
           column: self.column,
         };
         self.next_char();
-        return Ok(Some(token));
+        Ok(Some(token))
       }
       Some(&'=') => {
         let token = Token {
@@ -367,7 +365,7 @@ impl Lexer<'_> {
           column: self.column,
         };
         self.next_char();
-        return Ok(Some(token));
+        Ok(Some(token))
       }
       Some(&'@') => {
         let token = Token {
@@ -378,7 +376,7 @@ impl Lexer<'_> {
           column: self.column,
         };
         self.next_char();
-        return Ok(Some(token));
+        Ok(Some(token))
       }
       Some(&'[') => {
         let token = Token {
@@ -389,7 +387,7 @@ impl Lexer<'_> {
           column: self.column,
         };
         self.next_char();
-        return Ok(Some(token));
+        Ok(Some(token))
       }
       Some(&']') => {
         let token = Token {
@@ -400,7 +398,7 @@ impl Lexer<'_> {
           column: self.column,
         };
         self.next_char();
-        return Ok(Some(token));
+        Ok(Some(token))
       }
       Some(&'{') => {
         let token = Token {
@@ -411,7 +409,7 @@ impl Lexer<'_> {
           column: self.column,
         };
         self.next_char();
-        return Ok(Some(token));
+        Ok(Some(token))
       }
       Some(&'|') => {
         let token = Token {
@@ -422,7 +420,7 @@ impl Lexer<'_> {
           column: self.column,
         };
         self.next_char();
-        return Ok(Some(token));
+        Ok(Some(token))
       }
       Some(&'}') => {
         let token = Token {
@@ -433,7 +431,7 @@ impl Lexer<'_> {
           column: self.column,
         };
         self.next_char();
-        return Ok(Some(token));
+        Ok(Some(token))
       }
       // Name token
       Some(&('A'..='Z')) | Some(&('a'..='z')) | Some(&'_') => {
@@ -451,13 +449,13 @@ impl Lexer<'_> {
           value.push(self.next_char().unwrap());
         }
 
-        return Ok(Some(Token {
+        Ok(Some(Token {
           kind: TokenKind::Name { value },
           start,
           end: self.position,
           line: self.line,
           column: start_column,
-        }));
+        }))
       }
       // Int or Float token
       Some(&'-') | Some(&('0'..='9')) => {
@@ -555,7 +553,7 @@ impl Lexer<'_> {
 
         if fractional_part == "" && exponent_part == "" {
           // It's an integer
-          return Ok(Some(Token {
+          Ok(Some(Token {
             kind: TokenKind::Int {
               value: integer_part,
             },
@@ -563,20 +561,20 @@ impl Lexer<'_> {
             end: self.position,
             line: self.line,
             column: start_column,
-          }));
+          }))
         } else {
           // It's a float
           let mut value = String::from("");
           value.push_str(&integer_part);
           value.push_str(&fractional_part);
           value.push_str(&exponent_part);
-          return Ok(Some(Token {
+          Ok(Some(Token {
             kind: TokenKind::Float { value },
             start,
             end: self.position,
             line: self.line,
             column: start_column,
-          }));
+          }))
         }
       }
       // String token
@@ -634,7 +632,7 @@ impl Lexer<'_> {
               return Err(String::from("Unterminated string."));
             }
 
-            return Ok(Some(Token {
+            Ok(Some(Token {
               kind: TokenKind::String {
                 value: block_string_value(&value[..value.len() - 3]),
               },
@@ -642,10 +640,10 @@ impl Lexer<'_> {
               end: self.position,
               line: start_line,
               column: start_column,
-            }));
+            }))
           } else {
             // Empty string
-            return Ok(Some(Token {
+            Ok(Some(Token {
               kind: TokenKind::String {
                 value: String::from(""),
               },
@@ -653,7 +651,7 @@ impl Lexer<'_> {
               end: self.position,
               line: self.line,
               column: start_column,
-            }));
+            }))
           }
         } else {
           // Non-empty non-block stirng
@@ -743,13 +741,13 @@ impl Lexer<'_> {
           // Remove closing quote
           self.next_char();
 
-          return Ok(Some(Token {
+          Ok(Some(Token {
             kind: TokenKind::String { value },
             start,
             end: self.position,
             line: self.line,
             column: start_column,
-          }));
+          }))
         }
       }
       Some(&'\'') => Err(String::from(
@@ -850,11 +848,11 @@ impl Lexer<'_> {
         },
       }
     }
-    return Ok(token_vec);
+    Ok(token_vec)
   }
 
   pub fn get_position(&self) -> usize {
-    return self.position;
+    self.position
   }
 }
 
