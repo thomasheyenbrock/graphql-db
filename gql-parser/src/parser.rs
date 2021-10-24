@@ -516,10 +516,8 @@ impl Parser<'_> {
     })
   }
 
-  fn parse_operation_definition(
-    &mut self,
-    start_token: lexer::Token,
-  ) -> Result<Definition, SyntaxError> {
+  fn parse_operation_definition(&mut self) -> Result<Definition, SyntaxError> {
+    let start_token = self.next_token(None)?;
     match start_token.kind {
       lexer::TokenKind::CurlyBracketOpening => Ok(Definition::OperationDefinition {
         operation: OperationType::query,
@@ -800,12 +798,12 @@ impl Parser<'_> {
       None
     };
 
-    let token = self.next_token(None)?;
+    let token = self.peek_token(None)?;
     match token.kind {
-      lexer::TokenKind::CurlyBracketOpening => self.parse_operation_definition(token),
+      lexer::TokenKind::CurlyBracketOpening => self.parse_operation_definition(),
       lexer::TokenKind::Name => {
         if token.value == "query" || token.value == "mutation" || token.value == "subscription" {
-          self.parse_operation_definition(token)
+          self.parse_operation_definition()
         } else if token.value == "fragment" {
           self.parse_fragment_definition()
         } else if token.value == "schema" {
