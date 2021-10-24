@@ -681,6 +681,14 @@ impl<'a> Lexer<'a> {
                   }
 
                   match u32::from_str_radix(&unicode, 16) {
+                    Err(_) => {
+                      self.position -= 6;
+                      self.column -= 6;
+                      return Err(format!(
+                        "Invalid character escape sequence: \\u{}.",
+                        unicode
+                      ));
+                    }
                     Ok(unicode_int) => {
                       let unicode_char = char::from_u32(unicode_int);
                       if unicode_char == None {
@@ -692,14 +700,6 @@ impl<'a> Lexer<'a> {
                         ));
                       }
                       value.push(unicode_char.unwrap());
-                    }
-                    Err(_) => {
-                      self.position -= 6;
-                      self.column -= 6;
-                      return Err(format!(
-                        "Invalid character escape sequence: \\u{}.",
-                        unicode
-                      ));
                     }
                   }
                 }
@@ -778,14 +778,14 @@ impl<'a> Lexer<'a> {
     }
 
     match self.next_token() {
-      Ok(token) => Ok(token),
-      Err(error) => {
-        self.error = Some(error.to_string());
-        return Err(SyntaxError {
-          message: error.to_string(),
+      Err(message) => {
+        self.error = Some(message.to_string());
+        Err(SyntaxError {
+          message: message.to_string(),
           position: self.position,
-        });
+        })
       }
+      Ok(token) => Ok(token),
     }
   }
 
@@ -805,16 +805,16 @@ impl<'a> Lexer<'a> {
     }
 
     match self.next_token() {
+      Err(message) => {
+        self.error = Some(message.to_string());
+        return Err(SyntaxError {
+          message: message.to_string(),
+          position: self.position,
+        });
+      }
       Ok(mut token) => {
         self.peeked = std::mem::take(&mut token);
         return Ok(token);
-      }
-      Err(error) => {
-        self.error = Some(error.to_string());
-        return Err(SyntaxError {
-          message: error.to_string(),
-          position: self.position,
-        });
       }
     }
   }
@@ -856,7 +856,18 @@ mod lexer {
 
   fn equals(v1: Result<Vec<Token>, SyntaxError>, v2: Result<Vec<Token>, SyntaxError>) {
     match v1 {
+      Err(error1) => match v2 {
+        Err(error2) => {
+          if error1 != error2 {
+            panic!("Expected {:?}, got {:?}", error2, error1);
+          }
+        }
+        Ok(tokens2) => {
+          panic!("Expected {:?}, got {:?}", tokens2, error1);
+        }
+      },
       Ok(tokens1) => match v2 {
+        Err(error2) => panic!("Expected {:?}, got {:?}", error2, tokens1),
         Ok(tokens2) => {
           if tokens1.len() != tokens2.len() {
             panic!(
@@ -873,17 +884,6 @@ mod lexer {
                 token2, index, token1
               )
             }
-          }
-        }
-        Err(error2) => panic!("Expected {:?}, got {:?}", error2, tokens1),
-      },
-      Err(error1) => match v2 {
-        Ok(tokens2) => {
-          panic!("Expected {:?}, got {:?}", tokens2, error1);
-        }
-        Err(error2) => {
-          if error1 != error2 {
-            panic!("Expected {:?}, got {:?}", error2, error1);
           }
         }
       },
