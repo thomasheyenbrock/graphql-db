@@ -748,11 +748,7 @@ impl<'a> Lexer<'a> {
       )),
       character => Err(format!(
         "Cannot parse the unexpected character {}.",
-        if character == None {
-          String::from("<EOF>")
-        } else {
-          print_character(character.unwrap())
-        }
+        print_character(character.unwrap())
       )),
     }
   }
