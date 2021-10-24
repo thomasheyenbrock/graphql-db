@@ -192,11 +192,11 @@ impl<'a> Lexer<'a> {
 
     // Skip ignores tokens
     while self.peek_char() == Some(&'\u{feff}') // UnicodeBOM
-            || self.peek_char() == Some(&'\t') // Tab
-            || self.peek_char() == Some(&' ') // Whitespace
-            || self.peek_char() == Some(&',') // Comma
-            || self.peek_char() == Some(&'\n') // Line feed & carriage return
-            || self.peek_char() == Some(&'\r')
+      || self.peek_char() == Some(&'\t') // Tab
+      || self.peek_char() == Some(&' ') // Whitespace
+      || self.peek_char() == Some(&',') // Comma
+      || self.peek_char() == Some(&'\n') // Line feed & carriage return
+      || self.peek_char() == Some(&'\r')
     {
       let next = self.next_char();
 
