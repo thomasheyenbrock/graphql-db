@@ -173,6 +173,10 @@ impl Lexer<'_> {
     return self.chars.next();
   }
 
+  fn peek_char(&mut self) -> Option<&char> {
+    self.chars.peek()
+  }
+
   fn next_no_error(&mut self) -> Result<Option<Token>, String> {
     if self.line == 0 {
       let sof = Token {
@@ -188,22 +192,22 @@ impl Lexer<'_> {
     }
 
     // Skip ignores tokens
-    while self.chars.peek() == Some(&'\u{feff}') // UnicodeBOM
-            || self.chars.peek() == Some(&'\t') // Tab
-            || self.chars.peek() == Some(&' ') // Whitespace
-            || self.chars.peek() == Some(&',') // Comma
-            || self.chars.peek() == Some(&'\n') // Line feed & carriage return
-            || self.chars.peek() == Some(&'\r')
+    while self.peek_char() == Some(&'\u{feff}') // UnicodeBOM
+            || self.peek_char() == Some(&'\t') // Tab
+            || self.peek_char() == Some(&' ') // Whitespace
+            || self.peek_char() == Some(&',') // Comma
+            || self.peek_char() == Some(&'\n') // Line feed & carriage return
+            || self.peek_char() == Some(&'\r')
     {
       let next = self.next_char();
 
-      if next == Some('\n') || (next == Some('\r') && self.chars.peek() != Some(&'\n')) {
+      if next == Some('\n') || (next == Some('\r') && self.peek_char() != Some(&'\n')) {
         self.line += 1;
         self.column = 1;
       }
     }
 
-    if self.chars.peek() == None {
+    if self.peek_char() == None {
       // Avoid returning EOF multiple times
       if self.is_done {
         return Ok(None);
@@ -219,7 +223,7 @@ impl Lexer<'_> {
       }
     }
 
-    match self.chars.peek() {
+    match self.peek_char() {
       // ASCII controll characters are not valid source characters
       // (except for CHARACTER TABULATION, LINE FEED, and CARRIAGE RETURN)
       character
@@ -246,8 +250,8 @@ impl Lexer<'_> {
         // comment token until a line feed, carriage return, of the
         // end of file is reached.
         let mut value = String::from("");
-        while (self.chars.peek() != Some(&'\u{a}'))
-          && (self.chars.peek() != Some(&'\u{d}') && (self.chars.peek() != None))
+        while (self.peek_char() != Some(&'\u{a}'))
+          && (self.peek_char() != Some(&'\u{d}') && (self.peek_char() != None))
         {
           value.push(self.next_char().unwrap());
         }
@@ -327,7 +331,7 @@ impl Lexer<'_> {
 
         // Check that the next two chars are also dots
         for index in 1..3 {
-          if self.chars.peek() != Some(&'.') {
+          if self.peek_char() != Some(&'.') {
             self.position -= index;
             self.column -= index;
             return Err(String::from("Cannot parse the unexpected character \".\"."));
@@ -439,10 +443,10 @@ impl Lexer<'_> {
         let mut value = String::from("");
         value.push(self.next_char().unwrap());
 
-        while (Some(&'A')..=Some(&'Z')).contains(&self.chars.peek())
-          || (Some(&'a')..=Some(&'z')).contains(&self.chars.peek())
-          || (Some(&'0')..=Some(&'9')).contains(&self.chars.peek())
-          || self.chars.peek() == Some(&'_')
+        while (Some(&'A')..=Some(&'Z')).contains(&self.peek_char())
+          || (Some(&'a')..=Some(&'z')).contains(&self.peek_char())
+          || (Some(&'0')..=Some(&'9')).contains(&self.peek_char())
+          || self.peek_char() == Some(&'_')
         {
           value.push(self.next_char().unwrap());
         }
@@ -463,59 +467,59 @@ impl Lexer<'_> {
         let mut integer_part = String::from("");
 
         // Optional negative sign
-        if self.chars.peek() == Some(&'-') {
+        if self.peek_char() == Some(&'-') {
           integer_part.push(self.next_char().unwrap());
         }
 
         // Leading zeros are not allowed, so if it's a zero it's the
         // only character of the IntergerPart
-        if self.chars.peek() == Some(&'0') {
+        if self.peek_char() == Some(&'0') {
           integer_part.push(self.next_char().unwrap());
-          if (Some(&'0')..=Some(&'9')).contains(&self.chars.peek()) {
+          if (Some(&'0')..=Some(&'9')).contains(&self.peek_char()) {
             return Err(format!(
               "Invalid number, unexpected digit after 0: \"{}\".",
-              self.chars.peek().unwrap()
+              self.peek_char().unwrap()
             ));
           }
         } else {
-          while (Some(&'0')..=Some(&'9')).contains(&self.chars.peek()) {
+          while (Some(&'0')..=Some(&'9')).contains(&self.peek_char()) {
             integer_part.push(self.next_char().unwrap());
           }
         }
 
         let mut fractional_part = String::from("");
-        if self.chars.peek() == Some(&'.') {
+        if self.peek_char() == Some(&'.') {
           fractional_part.push(self.next_char().unwrap());
 
           // Append all the following digits
-          while (Some(&'0')..=Some(&'9')).contains(&self.chars.peek()) {
+          while (Some(&'0')..=Some(&'9')).contains(&self.peek_char()) {
             fractional_part.push(self.next_char().unwrap());
           }
 
           if fractional_part == "." {
             return Err(format!(
               "Invalid number, expected digit but got: {}.",
-              if self.chars.peek() == None {
+              if self.peek_char() == None {
                 String::from("<EOF>")
               } else {
-                format!("\"{}\"", self.chars.peek().unwrap().to_string())
+                format!("\"{}\"", self.peek_char().unwrap().to_string())
               }
             ));
           }
         }
 
         let mut exponent_part = String::from("");
-        if self.chars.peek() == Some(&'e') || self.chars.peek() == Some(&'E') {
+        if self.peek_char() == Some(&'e') || self.peek_char() == Some(&'E') {
           // ExponentIndicator
           exponent_part.push(self.next_char().unwrap());
 
           // Optional sign
-          if self.chars.peek() == Some(&'+') || self.chars.peek() == Some(&'-') {
+          if self.peek_char() == Some(&'+') || self.peek_char() == Some(&'-') {
             exponent_part.push(self.next_char().unwrap());
           }
 
           // Append all the following digits
-          while (Some(&'0')..=Some(&'9')).contains(&self.chars.peek()) {
+          while (Some(&'0')..=Some(&'9')).contains(&self.peek_char()) {
             exponent_part.push(self.next_char().unwrap());
           }
 
@@ -528,24 +532,24 @@ impl Lexer<'_> {
           {
             return Err(format!(
               "Invalid number, expected digit but got: {}.",
-              if self.chars.peek() == None {
+              if self.peek_char() == None {
                 String::from("<EOF>")
               } else {
-                format!("\"{}\"", self.chars.peek().unwrap().to_string())
+                format!("\"{}\"", self.peek_char().unwrap().to_string())
               }
             ));
           }
         }
 
-        if (Some(&'0')..=Some(&'9')).contains(&self.chars.peek())
-          || (Some(&'a')..=Some(&'z')).contains(&self.chars.peek())
-          || (Some(&'A')..=Some(&'Z')).contains(&self.chars.peek())
-          || self.chars.peek() == Some(&'_')
-          || self.chars.peek() == Some(&'.')
+        if (Some(&'0')..=Some(&'9')).contains(&self.peek_char())
+          || (Some(&'a')..=Some(&'z')).contains(&self.peek_char())
+          || (Some(&'A')..=Some(&'Z')).contains(&self.peek_char())
+          || self.peek_char() == Some(&'_')
+          || self.peek_char() == Some(&'.')
         {
           return Err(format!(
             "Invalid number, expected digit but got: \"{}\".",
-            self.chars.peek().unwrap()
+            self.peek_char().unwrap()
           ));
         }
 
@@ -583,10 +587,10 @@ impl Lexer<'_> {
 
         self.next_char();
 
-        if self.chars.peek() == Some(&'"') {
+        if self.peek_char() == Some(&'"') {
           self.next_char();
 
-          if self.chars.peek() == Some(&'"') {
+          if self.peek_char() == Some(&'"') {
             // Block string
             self.next_char();
 
@@ -594,7 +598,7 @@ impl Lexer<'_> {
             let mut is_done = false;
             let mut passes = 0;
             while !is_done {
-              if self.chars.peek() == None {
+              if self.peek_char() == None {
                 return Err(String::from("Unterminated string."));
               }
 
@@ -655,7 +659,7 @@ impl Lexer<'_> {
           // Non-empty non-block stirng
           let mut value = String::from("");
 
-          while self.chars.peek() != Some(&'"') && self.chars.peek() != None {
+          while self.peek_char() != Some(&'"') && self.peek_char() != None {
             let next = self.next_char().unwrap();
 
             if next == '\\' {
@@ -732,7 +736,7 @@ impl Lexer<'_> {
             }
           }
 
-          if self.chars.peek() == None {
+          if self.peek_char() == None {
             return Err(String::from("Unterminated string."));
           }
 
