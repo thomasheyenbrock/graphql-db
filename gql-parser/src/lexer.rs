@@ -154,7 +154,7 @@ pub struct Lexer<'a> {
   is_done: bool,
 }
 
-impl Lexer<'_> {
+impl<'a> Lexer<'a> {
   pub fn new(query: &str) -> Lexer {
     Lexer {
       chars: query.chars().peekable(),
