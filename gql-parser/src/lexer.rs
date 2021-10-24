@@ -832,25 +832,22 @@ impl<'a> Lexer<'a> {
     }
   }
 
-  pub fn to_vec(&mut self) -> Result<Vec<Token>, SyntaxError> {
-    let mut token_vec: Vec<Token> = Vec::new();
-    let mut is_done = false;
-
-    while !is_done {
-      match self.next() {
-        Err(error) => return Err(error),
-        Ok(some_token) => match some_token {
-          None => is_done = true,
-          token => token_vec.push(token.unwrap()),
-        },
-      }
-    }
-    Ok(token_vec)
-  }
-
   pub fn get_position(&self) -> usize {
     self.position
   }
+}
+
+pub fn tokenize<'a>(query: &'a str) -> Result<Vec<Token>, SyntaxError> {
+  let mut lexer = Lexer::new(query);
+  let mut tokens: Vec<Token> = Vec::new();
+
+  let mut next = lexer.next()?;
+  while next != None {
+    tokens.push(next.unwrap());
+    next = lexer.next()?;
+  }
+
+  Ok(tokens)
 }
 
 #[cfg(test)]
@@ -896,7 +893,7 @@ mod lexer {
   #[test]
   fn should_lex_a_simple_query() {
     equals(
-      Lexer::new("{ hello }").to_vec(),
+      tokenize("{ hello }"),
       #[cfg_attr(rustfmt, rustfmt_skip)]
             Ok(vec![
                 Token { kind: TokenKind::SOF,                                   start: 0, end: 0, line: 0, column:  0 },
@@ -911,7 +908,7 @@ mod lexer {
   #[test]
   fn should_skip_all_ignored_tokens() {
     equals(
-      Lexer::new("\u{feff} \t\n,,,\r,\r\n,,").to_vec(),
+      tokenize("\u{feff} \t\n,,,\r,\r\n,,"),
       #[cfg_attr(rustfmt, rustfmt_skip)]
             Ok(vec![
                 Token { kind: TokenKind::SOF, start:  0, end:  0, line: 0, column: 0 },
@@ -923,7 +920,7 @@ mod lexer {
   #[test]
   fn should_count_lines_correctly() {
     equals(
-      Lexer::new("\n").to_vec(),
+      tokenize("\n"),
       #[cfg_attr(rustfmt, rustfmt_skip)]
             Ok(vec![
                 Token { kind: TokenKind::SOF, start: 0, end: 0, line: 0, column: 0 },
@@ -931,7 +928,7 @@ mod lexer {
             ]),
     );
     equals(
-      Lexer::new("\r").to_vec(),
+      tokenize("\r"),
       #[cfg_attr(rustfmt, rustfmt_skip)]
             Ok(vec![
                 Token { kind: TokenKind::SOF, start: 0, end: 0, line: 0, column: 0 },
@@ -939,7 +936,7 @@ mod lexer {
             ]),
     );
     equals(
-      Lexer::new("\r\n").to_vec(),
+      tokenize("\r\n"),
       #[cfg_attr(rustfmt, rustfmt_skip)]
             Ok(vec![
                 Token { kind: TokenKind::SOF, start: 0, end: 0, line: 0, column: 0 },
@@ -947,7 +944,7 @@ mod lexer {
             ]),
     );
     equals(
-      Lexer::new("\n\r").to_vec(),
+      tokenize("\n\r"),
       #[cfg_attr(rustfmt, rustfmt_skip)]
             Ok(vec![
                 Token { kind: TokenKind::SOF, start: 0, end: 0, line: 0, column: 0 },
@@ -959,7 +956,7 @@ mod lexer {
   #[test]
   fn should_include_comment_tokens() {
     equals(
-      Lexer::new("\t,,#this is a comment\n,#until the end of file").to_vec(),
+      tokenize("\t,,#this is a comment\n,#until the end of file"),
       #[cfg_attr(rustfmt, rustfmt_skip)]
             Ok(vec![
                 Token { kind: TokenKind::SOF,                                                      start:  0, end:  0, line: 0, column:  0 },
@@ -973,21 +970,21 @@ mod lexer {
   #[test]
   fn should_return_an_error_for_invalid_source_chars() {
     equals(
-      Lexer::new("Hello\u{2}world").to_vec(),
+      tokenize("Hello\u{2}world"),
       Err(SyntaxError {
         message: String::from("Cannot contain the invalid character \"\\u0002\"."),
         position: 5,
       }),
     );
     equals(
-      Lexer::new("Hello\u{8}world").to_vec(),
+      tokenize("Hello\u{8}world"),
       Err(SyntaxError {
         message: String::from("Cannot contain the invalid character \"\\b\"."),
         position: 5,
       }),
     );
     equals(
-      Lexer::new("Hello\u{c}world").to_vec(),
+      tokenize("Hello\u{c}world"),
       Err(SyntaxError {
         message: String::from("Cannot contain the invalid character \"\\f\"."),
         position: 5,
@@ -998,7 +995,7 @@ mod lexer {
   #[test]
   fn should_parse_punctuators() {
     equals(
-      Lexer::new("!$&()...:=@[]{|}").to_vec(),
+      tokenize("!$&()...:=@[]{|}"),
       #[cfg_attr(rustfmt, rustfmt_skip)]
             Ok(vec![
                 Token { kind: TokenKind::SOF,                  start:  0, end:  0, line: 0, column:  0 },
@@ -1024,14 +1021,14 @@ mod lexer {
   #[test]
   fn should_return_an_error_for_incomplete_spread() {
     equals(
-      Lexer::new("Hello.world").to_vec(),
+      tokenize("Hello.world"),
       Err(SyntaxError {
         message: String::from("Cannot parse the unexpected character \".\"."),
         position: 5,
       }),
     );
     equals(
-      Lexer::new("Hello..world").to_vec(),
+      tokenize("Hello..world"),
       Err(SyntaxError {
         message: String::from("Cannot parse the unexpected character \".\"."),
         position: 5,
@@ -1042,7 +1039,7 @@ mod lexer {
   #[test]
   fn should_parse_name_tokens() {
     equals(
-      Lexer::new("HELLO hello _HELLO __hello hello123 hello_123 _123 __123").to_vec(),
+      tokenize("HELLO hello _HELLO __hello hello123 hello_123 _123 __123"),
       #[cfg_attr(rustfmt, rustfmt_skip)]
             Ok(vec![
                 Token { kind: TokenKind::SOF,                                       start:  0, end:  0, line: 0, column:  0 },
@@ -1062,7 +1059,7 @@ mod lexer {
   #[test]
   fn should_return_an_error_when_starting_with_a_number() {
     equals(
-      Lexer::new("Hello 42world").to_vec(),
+      tokenize("Hello 42world"),
       Err(SyntaxError {
         message: String::from("Invalid number, expected digit but got: \"w\"."),
         position: 8,
@@ -1073,7 +1070,7 @@ mod lexer {
   #[test]
   fn should_parse_int_tokens() {
     equals(
-      Lexer::new("0 -0 42 -42").to_vec(),
+      tokenize("0 -0 42 -42"),
       #[cfg_attr(rustfmt, rustfmt_skip)]
             Ok(vec![
                 Token { kind: TokenKind::SOF,                                start:  0, end:  0, line: 0, column:  0 },
@@ -1089,14 +1086,14 @@ mod lexer {
   #[test]
   fn should_return_an_error_for_leading_plus_for_ints() {
     equals(
-      Lexer::new("+0").to_vec(),
+      tokenize("+0"),
       Err(SyntaxError {
         message: String::from("Cannot parse the unexpected character \"+\"."),
         position: 0,
       }),
     );
     equals(
-      Lexer::new("+42").to_vec(),
+      tokenize("+42"),
       Err(SyntaxError {
         message: String::from("Cannot parse the unexpected character \"+\"."),
         position: 0,
@@ -1107,14 +1104,14 @@ mod lexer {
   #[test]
   fn should_return_an_error_for_leading_zeros_for_ints() {
     equals(
-      Lexer::new("042").to_vec(),
+      tokenize("042"),
       Err(SyntaxError {
         message: String::from("Invalid number, unexpected digit after 0: \"4\"."),
         position: 1,
       }),
     );
     equals(
-      Lexer::new("0042").to_vec(),
+      tokenize("0042"),
       Err(SyntaxError {
         message: String::from("Invalid number, unexpected digit after 0: \"0\"."),
         position: 1,
@@ -1125,7 +1122,7 @@ mod lexer {
   #[test]
   fn should_parse_float_tokens_with_a_fractional_part() {
     equals(
-      Lexer::new("0.43 -0.43 42.43 -42.43").to_vec(),
+      tokenize("0.43 -0.43 42.43 -42.43"),
       #[cfg_attr(rustfmt, rustfmt_skip)]
             Ok(vec![
                 Token { kind: TokenKind::SOF,                                     start:  0, end:  0, line: 0, column:  0 },
@@ -1141,7 +1138,7 @@ mod lexer {
   #[test]
   fn should_parse_float_tokens_with_an_exponent_part() {
     equals(
-            Lexer::new("0e44 0E44 0e+44 0E+44 0e-44 0E-44 -0e44 -0E44 -0e+44 -0E+44 -0e-44 -0E-44 42e44 42E44 42e+44 42E+44 42e-44 42E-44 -42e44 -42E44 -42e+44 -42E+44 -42e-44 -42E-44").to_vec(),
+            tokenize("0e44 0E44 0e+44 0E+44 0e-44 0E-44 -0e44 -0E44 -0e+44 -0E+44 -0e-44 -0E-44 42e44 42E44 42e+44 42E+44 42e-44 42E-44 -42e44 -42E44 -42e+44 -42E+44 -42e-44 -42E-44"),
             #[cfg_attr(rustfmt, rustfmt_skip)]
             Ok(vec![
                 Token { kind: TokenKind::SOF,                                      start:   0, end:   0, line: 0, column:   0 },
@@ -1177,7 +1174,7 @@ mod lexer {
   #[test]
   fn should_parse_float_tokens_with_fractional_and_exponent_part() {
     equals(
-            Lexer::new("0.43e44 0.43E44 0.43e+44 0.43E+44 0.43e-44 0.43E-44 -0.43e44 -0.43E44 -0.43e+44 -0.43E+44 -0.43e-44 -0.43E-44 42.43e44 42.43E44 42.43e+44 42.43E+44 42.43e-44 42.43E-44 -42.43e44 -42.43E44 -42.43e+44 -42.43E+44 -42.43e-44 -42.43E-44").to_vec(),
+            tokenize("0.43e44 0.43E44 0.43e+44 0.43E+44 0.43e-44 0.43E-44 -0.43e44 -0.43E44 -0.43e+44 -0.43E+44 -0.43e-44 -0.43E-44 42.43e44 42.43E44 42.43e+44 42.43E+44 42.43e-44 42.43E-44 -42.43e44 -42.43E44 -42.43e+44 -42.43E+44 -42.43e-44 -42.43E-44"),
             #[cfg_attr(rustfmt, rustfmt_skip)]
             Ok(vec![
                 Token { kind: TokenKind::SOF,                                         start:   0, end:   0, line: 0, column:   0 },
@@ -1213,14 +1210,14 @@ mod lexer {
   #[test]
   fn should_return_an_error_for_leading_plus_for_floats() {
     equals(
-      Lexer::new("+0").to_vec(),
+      tokenize("+0"),
       Err(SyntaxError {
         message: String::from("Cannot parse the unexpected character \"+\"."),
         position: 0,
       }),
     );
     equals(
-      Lexer::new("+42.43").to_vec(),
+      tokenize("+42.43"),
       Err(SyntaxError {
         message: String::from("Cannot parse the unexpected character \"+\"."),
         position: 0,
@@ -1231,14 +1228,14 @@ mod lexer {
   #[test]
   fn should_return_an_error_for_leading_zeros_for_floats() {
     equals(
-      Lexer::new("042.43").to_vec(),
+      tokenize("042.43"),
       Err(SyntaxError {
         message: String::from("Invalid number, unexpected digit after 0: \"4\"."),
         position: 1,
       }),
     );
     equals(
-      Lexer::new("0042.43").to_vec(),
+      tokenize("0042.43"),
       Err(SyntaxError {
         message: String::from("Invalid number, unexpected digit after 0: \"0\"."),
         position: 1,
@@ -1249,14 +1246,14 @@ mod lexer {
   #[test]
   fn should_return_an_error_for_empty_fractional_part() {
     equals(
-      Lexer::new("0.").to_vec(),
+      tokenize("0."),
       Err(SyntaxError {
         message: String::from("Invalid number, expected digit but got: <EOF>."),
         position: 2,
       }),
     );
     equals(
-      Lexer::new("42.e44").to_vec(),
+      tokenize("42.e44"),
       Err(SyntaxError {
         message: String::from("Invalid number, expected digit but got: \"e\"."),
         position: 3,
@@ -1267,14 +1264,14 @@ mod lexer {
   #[test]
   fn should_return_an_error_for_empty_exponent_part() {
     equals(
-      Lexer::new("0e").to_vec(),
+      tokenize("0e"),
       Err(SyntaxError {
         message: String::from("Invalid number, expected digit but got: <EOF>."),
         position: 2,
       }),
     );
     equals(
-      Lexer::new("42e ").to_vec(),
+      tokenize("42e "),
       Err(SyntaxError {
         message: String::from("Invalid number, expected digit but got: \" \"."),
         position: 3,
@@ -1285,7 +1282,7 @@ mod lexer {
   #[test]
   fn should_return_an_error_for_name_following_int() {
     equals(
-      Lexer::new("42hello").to_vec(),
+      tokenize("42hello"),
       Err(SyntaxError {
         message: String::from("Invalid number, expected digit but got: \"h\"."),
         position: 2,
@@ -1296,7 +1293,7 @@ mod lexer {
   #[test]
   fn should_return_an_error_for_name_following_float() {
     equals(
-      Lexer::new("42.43hello").to_vec(),
+      tokenize("42.43hello"),
       Err(SyntaxError {
         message: String::from("Invalid number, expected digit but got: \"h\"."),
         position: 5,
@@ -1307,7 +1304,7 @@ mod lexer {
   #[test]
   fn should_parse_string_tokens() {
     equals(
-      Lexer::new("\"Hello\" \"\" \"\"\"world\"\"\" \"\"\"\"\"\"").to_vec(),
+      tokenize("\"Hello\" \"\" \"\"\"world\"\"\" \"\"\"\"\"\""),
       #[cfg_attr(rustfmt, rustfmt_skip)]
             Ok(vec![
                 Token { kind: TokenKind::SOF,                                     start:  0, end:  0, line: 0, column:  0 },
@@ -1323,7 +1320,7 @@ mod lexer {
   #[test]
   fn should_parse_escaped_characters_in_strings() {
     equals(
-      Lexer::new("\"Hello \\\" \\\\ \\/ \\b \\f \\n \\r \\t \\u1234\"").to_vec(),
+      tokenize("\"Hello \\\" \\\\ \\/ \\b \\f \\n \\r \\t \\u1234\""),
       #[cfg_attr(rustfmt, rustfmt_skip)]
             Ok(vec![
                 Token { kind: TokenKind::SOF,                                                                           start:  0, end:  0, line: 0, column:  0 },
@@ -1336,7 +1333,7 @@ mod lexer {
   #[test]
   fn should_parse_escaped_triple_quotes_in_block_strings() {
     equals(
-            Lexer::new("\"\"\"\\\"\"\"\"\"\" \"\"\"escaped \\\"\"\"\"\"\" \"\"\"\\\"\"\" escaped\"\"\" \"\"\"escaped \\\"\"\" escaped\"\"\"").to_vec(),
+            tokenize("\"\"\"\\\"\"\"\"\"\" \"\"\"escaped \\\"\"\"\"\"\" \"\"\"\\\"\"\" escaped\"\"\" \"\"\"escaped \\\"\"\" escaped\"\"\""),
             #[cfg_attr(rustfmt, rustfmt_skip)]
             Ok(vec![
                 Token { kind: TokenKind::SOF,                                                      start:  0, end:  0, line: 0, column:  0 },
@@ -1352,7 +1349,7 @@ mod lexer {
   #[test]
   fn should_format_block_string_values() {
     equals(
-      Lexer::new("\"\"\"\n \t Hello\r\n\r    \tworld\r  \n\t\"\"\"").to_vec(),
+      tokenize("\"\"\"\n \t Hello\r\n\r    \tworld\r  \n\t\"\"\""),
       #[cfg_attr(rustfmt, rustfmt_skip)]
             Ok(vec![
                 Token { kind: TokenKind::SOF,                                                 start:  0, end:  0, line: 0, column: 0 },
@@ -1361,7 +1358,7 @@ mod lexer {
             ]),
     );
     equals(
-      Lexer::new("\"\"\"\n  Hello,\n    World!\n\n  Yours,\n    GraphQL.\n  \"\"\"").to_vec(),
+      tokenize("\"\"\"\n  Hello,\n    World!\n\n  Yours,\n    GraphQL.\n  \"\"\""),
       #[cfg_attr(rustfmt, rustfmt_skip)]
             Ok(vec![
                 Token { kind: TokenKind::SOF,                                                                      start:  0, end:  0, line: 0, column: 0 },
@@ -1374,42 +1371,42 @@ mod lexer {
   #[test]
   fn should_return_an_error_for_invalid_character_escapes() {
     equals(
-      Lexer::new("\"\\q\"").to_vec(),
+      tokenize("\"\\q\""),
       Err(SyntaxError {
         message: String::from("Invalid character escape sequence: \\q."),
         position: 1,
       }),
     );
     equals(
-      Lexer::new("\"\\u\"").to_vec(),
+      tokenize("\"\\u\""),
       Err(SyntaxError {
         message: String::from("Invalid character escape sequence: \\u\"."),
         position: 1,
       }),
     );
     equals(
-      Lexer::new("\"\\u1\"").to_vec(),
+      tokenize("\"\\u1\""),
       Err(SyntaxError {
         message: String::from("Invalid character escape sequence: \\u1\"."),
         position: 1,
       }),
     );
     equals(
-      Lexer::new("\"\\u12\"").to_vec(),
+      tokenize("\"\\u12\""),
       Err(SyntaxError {
         message: String::from("Invalid character escape sequence: \\u12\"."),
         position: 1,
       }),
     );
     equals(
-      Lexer::new("\"\\u123\"").to_vec(),
+      tokenize("\"\\u123\""),
       Err(SyntaxError {
         message: String::from("Invalid character escape sequence: \\u123\"."),
         position: 1,
       }),
     );
     equals(
-      Lexer::new("\"\\u123z\"").to_vec(),
+      tokenize("\"\\u123z\""),
       Err(SyntaxError {
         message: String::from("Invalid character escape sequence: \\u123z."),
         position: 1,
@@ -1420,28 +1417,28 @@ mod lexer {
   #[test]
   fn should_return_an_error_for_unterminated_string() {
     equals(
-      Lexer::new("\"Hello").to_vec(),
+      tokenize("\"Hello"),
       Err(SyntaxError {
         message: String::from("Unterminated string."),
         position: 6,
       }),
     );
     equals(
-      Lexer::new("\"Hello\nworld\"").to_vec(),
+      tokenize("\"Hello\nworld\""),
       Err(SyntaxError {
         message: String::from("Unterminated string."),
         position: 6,
       }),
     );
     equals(
-      Lexer::new("\"Hello\rworld\"").to_vec(),
+      tokenize("\"Hello\rworld\""),
       Err(SyntaxError {
         message: String::from("Unterminated string."),
         position: 6,
       }),
     );
     equals(
-      Lexer::new("\"Hello\r\nworld\"").to_vec(),
+      tokenize("\"Hello\r\nworld\""),
       Err(SyntaxError {
         message: String::from("Unterminated string."),
         position: 6,
@@ -1452,21 +1449,21 @@ mod lexer {
   #[test]
   fn should_return_an_error_for_unterminated_block_string() {
     equals(
-      Lexer::new("\"\"\"Hello").to_vec(),
+      tokenize("\"\"\"Hello"),
       Err(SyntaxError {
         message: String::from("Unterminated string."),
         position: 8,
       }),
     );
     equals(
-      Lexer::new("\"\"\"Hello\"").to_vec(),
+      tokenize("\"\"\"Hello\""),
       Err(SyntaxError {
         message: String::from("Unterminated string."),
         position: 9,
       }),
     );
     equals(
-      Lexer::new("\"\"\"Hello\"\"").to_vec(),
+      tokenize("\"\"\"Hello\"\""),
       Err(SyntaxError {
         message: String::from("Unterminated string."),
         position: 10,
@@ -1477,14 +1474,14 @@ mod lexer {
   #[test]
   fn should_return_an_error_for_unexpected_characters() {
     equals(
-      Lexer::new("Hello\u{25}world").to_vec(),
+      tokenize("Hello\u{25}world"),
       Err(SyntaxError {
         message: String::from("Cannot parse the unexpected character \"%\"."),
         position: 5,
       }),
     );
     equals(
-      Lexer::new("Hello\u{1234}world").to_vec(),
+      tokenize("Hello\u{1234}world"),
       Err(SyntaxError {
         message: String::from("Cannot parse the unexpected character \"\\u1234\"."),
         position: 5,
@@ -1495,7 +1492,7 @@ mod lexer {
   #[test]
   fn should_return_an_error_for_single_quote() {
     equals(
-      Lexer::new("'").to_vec(),
+      tokenize("'"),
       Err(SyntaxError {
         message: String::from(
           "Unexpected single quote character ('), did you mean to use a double quote (\")?",
