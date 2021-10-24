@@ -409,11 +409,6 @@ pub struct Document {
   pub loc: Loc,
 }
 
-enum OperationTypeWithShorthand {
-  Shorthand,
-  NonShorthand { operation_type: OperationType },
-}
-
 pub struct Parser<'a> {
   lexer: lexer::Lexer<'a>,
 }
@@ -463,6 +458,18 @@ impl Parser<'_> {
     }
   }
 
+  fn parse_name(&mut self) -> Result<Name, SyntaxError> {
+    let token = self.parse_token(lexer::TokenKind::Name)?;
+    let loc = Loc {
+      start_token: token.clone(),
+      end_token: token.clone(),
+    };
+    Ok(Name {
+      value: token.value,
+      loc,
+    })
+  }
+
   fn parse_description(&mut self, expected: Option<&str>) -> Result<StringValue, SyntaxError> {
     let token = self.next_token(expected)?;
     let loc = Loc {
@@ -482,14 +489,96 @@ impl Parser<'_> {
     }
   }
 
-  fn parse_operation_definition(
-    &mut self,
-    operation_type: OperationTypeWithShorthand,
-  ) -> Result<Definition, SyntaxError> {
+  fn parse_directives(&mut self) -> Result<Vec<Directive>, SyntaxError> {
     Err(SyntaxError {
       message: String::from("TODO:"),
       position: 999,
     })
+  }
+
+  fn parse_variable_definitions(&mut self) -> Result<Vec<VariableDefinition>, SyntaxError> {
+    Err(SyntaxError {
+      message: String::from("TODO:"),
+      position: 999,
+    })
+  }
+
+  fn parse_selection_set(&mut self) -> Result<SelectionSet, SyntaxError> {
+    Err(SyntaxError {
+      message: String::from("TODO:"),
+      position: 999,
+    })
+  }
+
+  fn parse_operation_definition(
+    &mut self,
+    start_token: lexer::Token,
+  ) -> Result<Definition, SyntaxError> {
+    match start_token.kind {
+      lexer::TokenKind::CurlyBracketOpening => Ok(Definition::OperationDefinition {
+        operation: OperationType::query,
+        name: None,
+        variable_definitions: vec![],
+        directives: vec![],
+        selection_set: self.parse_selection_set()?,
+        loc: Loc {
+          start_token,
+          end_token: self.parse_token(lexer::TokenKind::CurlyBracketClosing)?,
+        },
+      }),
+      lexer::TokenKind::Name => {
+        let operation = if start_token.value == "query" {
+          OperationType::query
+        } else if start_token.value == "mutation" {
+          OperationType::mutation
+        } else if start_token.value == "subscription" {
+          OperationType::subscription
+        } else {
+          return Err(SyntaxError {
+            message: format!("Unexpected {}.", start_token),
+            position: self.lexer.get_position(),
+          });
+        };
+
+        let peeked = self.lexer.peek()?;
+        let name = if peeked != None && peeked.unwrap().kind == lexer::TokenKind::Name {
+          Some(self.parse_name()?)
+        } else {
+          None
+        };
+
+        let peeked = self.lexer.peek()?;
+        let variable_definitions =
+          if peeked != None && peeked.unwrap().kind == lexer::TokenKind::RoundBracketOpening {
+            self.parse_variable_definitions()?
+          } else {
+            vec![]
+          };
+
+        let peeked = self.lexer.peek()?;
+        let directives = if peeked != None && peeked.unwrap().kind == lexer::TokenKind::Name {
+          self.parse_directives()?
+        } else {
+          vec![]
+        };
+
+        Ok(Definition::OperationDefinition {
+          operation,
+          name,
+          variable_definitions,
+          directives,
+          selection_set: self.parse_selection_set()?,
+          loc: Loc {
+            start_token,
+            end_token: self.parse_token(lexer::TokenKind::CurlyBracketClosing)?,
+          },
+        })
+      }
+      _ => Err(SyntaxError {
+        message: format!("Unexpected {}.", start_token),
+        position: self.lexer.get_position(),
+      }),
+    }
   }
 
   fn parse_fragment_definition(&mut self) -> Result<Definition, SyntaxError> {
@@ -710,22 +799,10 @@ impl Parser<'_> {
 
     let token = self.next_token(None)?;
     match token.kind {
-      lexer::TokenKind::CurlyBracketOpening => {
-        self.parse_operation_definition(OperationTypeWithShorthand::Shorthand)
-      }
+      lexer::TokenKind::CurlyBracketOpening => self.parse_operation_definition(token),
       lexer::TokenKind::Name => {
-        if token.value == "query" {
-          self.parse_operation_definition(OperationTypeWithShorthand::NonShorthand {
-            operation_type: OperationType::query,
-          })
-        } else if token.value == "mutation" {
-          self.parse_operation_definition(OperationTypeWithShorthand::NonShorthand {
-            operation_type: OperationType::mutation,
-          })
-        } else if token.value == "subscription" {
-          self.parse_operation_definition(OperationTypeWithShorthand::NonShorthand {
-            operation_type: OperationType::subscription,
-          })
+        if token.value == "query" || token.value == "mutation" || token.value == "subscription" {
+          self.parse_operation_definition(token)
         } else if token.value == "fragment" {
           self.parse_fragment_definition()
         } else if token.value == "schema" {
@@ -778,4 +855,125 @@ impl Parser<'_> {
 
 pub fn parse(query: &str) -> Result<Document, SyntaxError> {
   Parser::new(query).parse_document()
+}
+
+#[cfg(test)]
+mod parser {
+  use super::*;
+
+  #[test]
+  fn should_work() {
+    assert_eq!(
+      parse("{ hello }"),
+      Ok(Document {
+        definitions: vec1![Definition::OperationDefinition {
+          operation: OperationType::query,
+          name: None,
+          variable_definitions: vec![],
+          directives: vec![],
+          selection_set: SelectionSet {
+            selections: vec1![Selection::Field {
+              name: Name {
+                value: String::from("hello"),
+                loc: Loc {
+                  start_token: lexer::Token {
+                    kind: lexer::TokenKind::Name,
+                    value: String::from("hello"),
+                    start: 2,
+                    end: 7,
+                    line: 1,
+                    column: 3
+                  },
+                  end_token: lexer::Token {
+                    kind: lexer::TokenKind::Name,
+                    value: String::from("hello"),
+                    start: 2,
+                    end: 7,
+                    line: 1,
+                    column: 3
+                  },
+                },
+              },
+              alias: None,
+              arguments: vec![],
+              directives: vec![],
+              selection_set: None,
+              loc: Loc {
+                start_token: lexer::Token {
+                  kind: lexer::TokenKind::Name,
+                  value: String::from("hello"),
+                  start: 2,
+                  end: 7,
+                  line: 1,
+                  column: 3
+                },
+                end_token: lexer::Token {
+                  kind: lexer::TokenKind::Name,
+                  value: String::from("hello"),
+                  start: 2,
+                  end: 7,
+                  line: 1,
+                  column: 3
+                },
+              },
+            }],
+            loc: Loc {
+              start_token: lexer::Token {
+                kind: lexer::TokenKind::CurlyBracketOpening,
+                value: String::from("{"),
+                start: 0,
+                end: 1,
+                line: 1,
+                column: 1
+              },
+              end_token: lexer::Token {
+                kind: lexer::TokenKind::CurlyBracketClosing,
+                value: String::from("}"),
+                start: 8,
+                end: 9,
+                line: 1,
+                column: 9
+              },
+            },
+          },
+          loc: Loc {
+            start_token: lexer::Token {
+              kind: lexer::TokenKind::CurlyBracketOpening,
+              value: String::from("{"),
+              start: 0,
+              end: 1,
+              line: 1,
+              column: 1
+            },
+            end_token: lexer::Token {
+              kind: lexer::TokenKind::CurlyBracketClosing,
+              value: String::from("}"),
+              start: 8,
+              end: 9,
+              line: 1,
+              column: 9
+            },
+          },
+        }],
+        loc: Loc {
+          start_token: lexer::Token {
+            kind: lexer::TokenKind::SOF,
+            value: String::from("<SOF>"),
+            line: 0,
+            column: 0,
+            start: 0,
+            end: 0,
+          },
+          end_token: lexer::Token {
+            kind: lexer::TokenKind::EOF,
+            value: String::from("<EOF>"),
+            start: 9,
+            end: 9,
+            line: 1,
+            column: 10
+          }
+        }
+      })
+    )
+  }
 }
