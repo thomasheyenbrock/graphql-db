@@ -1,3 +1,4 @@
+use crate::error::SyntaxError;
 use std::fmt;
 
 fn print_character(c: &char) -> String {
@@ -83,12 +84,6 @@ fn block_string_value(raw_value: &str) -> String {
   }
 
   lines.join("\n")
-}
-
-#[derive(Debug, PartialEq)]
-pub struct SyntaxError {
-  pub message: String,
-  pub position: usize,
 }
 
 #[derive(Debug, PartialEq)]

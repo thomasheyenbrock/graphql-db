@@ -1,4 +1,5 @@
-use super::lexer;
+use crate::error::SyntaxError;
+use crate::lexer;
 use vec1::Vec1;
 
 #[derive(Debug)]
@@ -430,13 +431,10 @@ impl Parser<'_> {
     }
   }
 
-  fn parse_token(
-    &mut self,
-    token_kind: lexer::TokenKind,
-  ) -> Result<lexer::Token, lexer::SyntaxError> {
+  fn parse_token(&mut self, token_kind: lexer::TokenKind) -> Result<lexer::Token, SyntaxError> {
     match self.lexer.next() {
       Ok(maybe_token) => match maybe_token {
-        None => Err(lexer::SyntaxError {
+        None => Err(SyntaxError {
           message: format!("Expected {}, got no token", token_kind),
           position: self.lexer.get_position(),
         }),
@@ -444,14 +442,14 @@ impl Parser<'_> {
           if token.kind == token_kind {
             Ok(token)
           } else {
-            Err(lexer::SyntaxError {
+            Err(SyntaxError {
               message: format!("Expected {}, got {}", token_kind, token.kind),
               position: token.start,
             })
           }
         }
       },
-      Err(error) => Err(lexer::SyntaxError {
+      Err(error) => Err(SyntaxError {
         message: error.message,
         position: error.position,
       }),
@@ -461,15 +459,15 @@ impl Parser<'_> {
   fn parse_operation_definition(
     &mut self,
     operation_type: OperationTypeWithShorthand,
-  ) -> Result<Definition, lexer::SyntaxError> {
-    Err(lexer::SyntaxError {
+  ) -> Result<Definition, SyntaxError> {
+    Err(SyntaxError {
       message: String::from("TODO:"),
       position: 999,
     })
   }
 
-  fn parse_fragment_definition(&mut self) -> Result<Definition, lexer::SyntaxError> {
-    Err(lexer::SyntaxError {
+  fn parse_fragment_definition(&mut self) -> Result<Definition, SyntaxError> {
+    Err(SyntaxError {
       message: String::from("TODO:"),
       position: 999,
     })
@@ -478,8 +476,8 @@ impl Parser<'_> {
   fn parse_schema_definition(
     &mut self,
     description: Option<lexer::Token>,
-  ) -> Result<Definition, lexer::SyntaxError> {
-    Err(lexer::SyntaxError {
+  ) -> Result<Definition, SyntaxError> {
+    Err(SyntaxError {
       message: String::from("TODO:"),
       position: 999,
     })
@@ -488,8 +486,8 @@ impl Parser<'_> {
   fn parse_scalar_type_definition(
     &mut self,
     description: Option<lexer::Token>,
-  ) -> Result<Definition, lexer::SyntaxError> {
-    Err(lexer::SyntaxError {
+  ) -> Result<Definition, SyntaxError> {
+    Err(SyntaxError {
       message: String::from("TODO:"),
       position: 999,
     })
@@ -498,8 +496,8 @@ impl Parser<'_> {
   fn parse_object_type_definition(
     &mut self,
     description: Option<lexer::Token>,
-  ) -> Result<Definition, lexer::SyntaxError> {
-    Err(lexer::SyntaxError {
+  ) -> Result<Definition, SyntaxError> {
+    Err(SyntaxError {
       message: String::from("TODO:"),
       position: 999,
     })
@@ -508,8 +506,8 @@ impl Parser<'_> {
   fn parse_interface_type_definition(
     &mut self,
     description: Option<lexer::Token>,
-  ) -> Result<Definition, lexer::SyntaxError> {
-    Err(lexer::SyntaxError {
+  ) -> Result<Definition, SyntaxError> {
+    Err(SyntaxError {
       message: String::from("TODO:"),
       position: 999,
     })
@@ -518,8 +516,8 @@ impl Parser<'_> {
   fn parse_union_type_definition(
     &mut self,
     description: Option<lexer::Token>,
-  ) -> Result<Definition, lexer::SyntaxError> {
-    Err(lexer::SyntaxError {
+  ) -> Result<Definition, SyntaxError> {
+    Err(SyntaxError {
       message: String::from("TODO:"),
       position: 999,
     })
@@ -528,8 +526,8 @@ impl Parser<'_> {
   fn parse_enum_type_definition(
     &mut self,
     description: Option<lexer::Token>,
-  ) -> Result<Definition, lexer::SyntaxError> {
-    Err(lexer::SyntaxError {
+  ) -> Result<Definition, SyntaxError> {
+    Err(SyntaxError {
       message: String::from("TODO:"),
       position: 999,
     })
@@ -538,8 +536,8 @@ impl Parser<'_> {
   fn parse_input_object_type_definition(
     &mut self,
     description: Option<lexer::Token>,
-  ) -> Result<Definition, lexer::SyntaxError> {
-    Err(lexer::SyntaxError {
+  ) -> Result<Definition, SyntaxError> {
+    Err(SyntaxError {
       message: String::from("TODO:"),
       position: 999,
     })
@@ -548,66 +546,66 @@ impl Parser<'_> {
   fn parse_directive_definition(
     &mut self,
     description: Option<lexer::Token>,
-  ) -> Result<Definition, lexer::SyntaxError> {
-    Err(lexer::SyntaxError {
+  ) -> Result<Definition, SyntaxError> {
+    Err(SyntaxError {
       message: String::from("TODO:"),
       position: 999,
     })
   }
 
-  fn parse_schema_extension(&mut self) -> Result<Definition, lexer::SyntaxError> {
-    Err(lexer::SyntaxError {
+  fn parse_schema_extension(&mut self) -> Result<Definition, SyntaxError> {
+    Err(SyntaxError {
       message: String::from("TODO:"),
       position: 999,
     })
   }
 
-  fn parse_scalar_extension(&mut self) -> Result<Definition, lexer::SyntaxError> {
-    Err(lexer::SyntaxError {
+  fn parse_scalar_extension(&mut self) -> Result<Definition, SyntaxError> {
+    Err(SyntaxError {
       message: String::from("TODO:"),
       position: 999,
     })
   }
 
-  fn parse_object_type_extension(&mut self) -> Result<Definition, lexer::SyntaxError> {
-    Err(lexer::SyntaxError {
+  fn parse_object_type_extension(&mut self) -> Result<Definition, SyntaxError> {
+    Err(SyntaxError {
       message: String::from("TODO:"),
       position: 999,
     })
   }
 
-  fn parse_interface_type_extension(&mut self) -> Result<Definition, lexer::SyntaxError> {
-    Err(lexer::SyntaxError {
+  fn parse_interface_type_extension(&mut self) -> Result<Definition, SyntaxError> {
+    Err(SyntaxError {
       message: String::from("TODO:"),
       position: 999,
     })
   }
 
-  fn parse_union_type_extension(&mut self) -> Result<Definition, lexer::SyntaxError> {
-    Err(lexer::SyntaxError {
+  fn parse_union_type_extension(&mut self) -> Result<Definition, SyntaxError> {
+    Err(SyntaxError {
       message: String::from("TODO:"),
       position: 999,
     })
   }
 
-  fn parse_enum_type_extension(&mut self) -> Result<Definition, lexer::SyntaxError> {
-    Err(lexer::SyntaxError {
+  fn parse_enum_type_extension(&mut self) -> Result<Definition, SyntaxError> {
+    Err(SyntaxError {
       message: String::from("TODO:"),
       position: 999,
     })
   }
 
-  fn parse_input_object_type_extension(&mut self) -> Result<Definition, lexer::SyntaxError> {
-    Err(lexer::SyntaxError {
+  fn parse_input_object_type_extension(&mut self) -> Result<Definition, SyntaxError> {
+    Err(SyntaxError {
       message: String::from("TODO:"),
       position: 999,
     })
   }
 
-  fn parse_definition(&mut self, modifier: TypeModifier) -> Result<Definition, lexer::SyntaxError> {
+  fn parse_definition(&mut self, modifier: TypeModifier) -> Result<Definition, SyntaxError> {
     match self.lexer.next() {
       Ok(maybe_token) => match maybe_token {
-        None => Err(lexer::SyntaxError {
+        None => Err(SyntaxError {
           message: String::from("Expected definition, got no token"),
           position: self.lexer.get_position(),
         }),
@@ -686,7 +684,7 @@ impl Parser<'_> {
               match modifier {
                 TypeModifier::None => self.parse_directive_definition(None),
                 TypeModifier::Description { token } => self.parse_directive_definition(Some(token)),
-                TypeModifier::Extension => Err(lexer::SyntaxError {
+                TypeModifier::Extension => Err(SyntaxError {
                   message: String::from("Unexpected name \"directive\""),
                   position: token.start,
                 }),
@@ -694,7 +692,7 @@ impl Parser<'_> {
             } else if value == "extend" && matches!(modifier, TypeModifier::None) {
               self.parse_definition(TypeModifier::Extension)
             } else {
-              Err(lexer::SyntaxError {
+              Err(SyntaxError {
                 message: format!("Unexpected name \"{}\"", value),
                 position: token.start,
               })
@@ -703,28 +701,28 @@ impl Parser<'_> {
           lexer::TokenKind::String { value: _ } => {
             self.parse_definition(TypeModifier::Description { token })
           }
-          lexer::TokenKind::Int { value } => Err(lexer::SyntaxError {
+          lexer::TokenKind::Int { value } => Err(SyntaxError {
             message: format!("Unexpected Int \"{}\".", value),
             position: token.start,
           }),
-          lexer::TokenKind::Float { value } => Err(lexer::SyntaxError {
+          lexer::TokenKind::Float { value } => Err(SyntaxError {
             message: format!("Unexpected Float \"{}\".", value),
             position: token.start,
           }),
-          kind => Err(lexer::SyntaxError {
+          kind => Err(SyntaxError {
             message: format!("Unexpected \"{}\".", kind),
             position: token.start,
           }),
         },
       },
-      Err(error) => Err(lexer::SyntaxError {
+      Err(error) => Err(SyntaxError {
         message: error.message,
         position: error.position,
       }),
     }
   }
 
-  pub fn parse(&mut self) -> Result<Document, lexer::SyntaxError> {
+  pub fn parse(&mut self) -> Result<Document, SyntaxError> {
     match self.parse_token(lexer::TokenKind::SOF) {
       Ok(start_token) => match self.parse_definition(TypeModifier::None) {
         Err(error) => Err(error),
