@@ -420,7 +420,10 @@ impl Parser<'_> {
     }
   }
 
-  fn next_token(&mut self, expected: Option<&str>) -> Result<lexer::Token, SyntaxError> {
+  fn next_token(
+    &mut self,
+    expected: Option<lexer::TokenKind>,
+  ) -> Result<lexer::Token, SyntaxError> {
     match self.lexer.next()? {
       None => Err(SyntaxError {
         message: match expected {
@@ -433,7 +436,10 @@ impl Parser<'_> {
     }
   }
 
-  fn peek_token(&mut self, expected: Option<&str>) -> Result<lexer::Token, SyntaxError> {
+  fn peek_token(
+    &mut self,
+    expected: Option<lexer::TokenKind>,
+  ) -> Result<lexer::Token, SyntaxError> {
     match self.lexer.peek()? {
       None => Err(SyntaxError {
         message: match expected {
@@ -447,12 +453,12 @@ impl Parser<'_> {
   }
 
   fn parse_token(&mut self, token_kind: lexer::TokenKind) -> Result<lexer::Token, SyntaxError> {
-    let token = self.next_token(Some(&format!("{}", token_kind)))?;
+    let token = self.next_token(Some(token_kind.clone()))?;
     if token.kind == token_kind {
       Ok(token)
     } else {
       Err(SyntaxError {
-        message: format!("Expected {}, got {}", token_kind, token.kind),
+        message: format!("Expected {}, found {}.", token_kind, token.kind),
         position: token.start,
       })
     }
@@ -470,8 +476,8 @@ impl Parser<'_> {
     })
   }
 
-  fn parse_description(&mut self, expected: Option<&str>) -> Result<StringValue, SyntaxError> {
-    let token = self.next_token(expected)?;
+  fn parse_description(&mut self) -> Result<StringValue, SyntaxError> {
+    let token = self.next_token(None)?;
     let loc = Loc {
       start_token: token.clone(),
       end_token: token.clone(),
@@ -718,16 +724,14 @@ impl Parser<'_> {
   }
 
   fn parse_definition(&mut self) -> Result<Definition, SyntaxError> {
-    let expected = None;
-
-    let peeked = self.peek_token(expected)?;
+    let peeked = self.peek_token(None)?;
     let is_extension = peeked.kind == lexer::TokenKind::Name && peeked.value == "extend";
     if is_extension {
       // Skip the "extend" keyword
-      self.next_token(expected)?;
+      self.next_token(None)?;
 
       // An extension must be followed by a type keyworkd
-      let peeked = self.peek_token(expected)?;
+      let peeked = self.peek_token(None)?;
       return match peeked.kind {
         lexer::TokenKind::Name => {
           if peeked.value == "schema" {
@@ -758,15 +762,14 @@ impl Parser<'_> {
       };
     }
 
-    let description = if (self.peek_token(expected)?.kind
-      == (lexer::TokenKind::String { block: true }))
-      || (self.peek_token(expected)?.kind == (lexer::TokenKind::String { block: false }))
+    let description = if (self.peek_token(None)?.kind == (lexer::TokenKind::String { block: true }))
+      || (self.peek_token(None)?.kind == (lexer::TokenKind::String { block: false }))
     {
       // Parse the description
-      let string_value = self.parse_description(expected)?;
+      let string_value = self.parse_description()?;
 
       // A description must be followed by a type system definition
-      let peeked = self.peek_token(expected)?;
+      let peeked = self.peek_token(None)?;
       match peeked.kind {
         lexer::TokenKind::Name => {
           if peeked.value == "schema"
@@ -864,7 +867,7 @@ mod parser {
   #[test]
   fn should_work() {
     assert_eq!(
-      parse("{ hello }"),
+      parse("query ($foo: Int) { hello }"),
       Ok(Document {
         definitions: vec1![Definition::OperationDefinition {
           operation: OperationType::query,
