@@ -4,7 +4,7 @@ use vec1::Vec1;
 #[derive(Debug)]
 pub struct StructureError {
   pub message: String,
-  pub position: i32,
+  pub position: usize,
 }
 
 #[derive(Debug)]
@@ -467,14 +467,14 @@ impl Parser<'_> {
   ) -> Result<Definition, StructureError> {
     Err(StructureError {
       message: String::from("TODO:"),
-      position: -1,
+      position: 999,
     })
   }
 
   fn parse_fragment_definition(&mut self) -> Result<Definition, StructureError> {
     Err(StructureError {
       message: String::from("TODO:"),
-      position: -1,
+      position: 999,
     })
   }
 
@@ -484,7 +484,7 @@ impl Parser<'_> {
   ) -> Result<Definition, StructureError> {
     Err(StructureError {
       message: String::from("TODO:"),
-      position: -1,
+      position: 999,
     })
   }
 
@@ -494,7 +494,7 @@ impl Parser<'_> {
   ) -> Result<Definition, StructureError> {
     Err(StructureError {
       message: String::from("TODO:"),
-      position: -1,
+      position: 999,
     })
   }
 
@@ -504,7 +504,7 @@ impl Parser<'_> {
   ) -> Result<Definition, StructureError> {
     Err(StructureError {
       message: String::from("TODO:"),
-      position: -1,
+      position: 999,
     })
   }
 
@@ -514,7 +514,7 @@ impl Parser<'_> {
   ) -> Result<Definition, StructureError> {
     Err(StructureError {
       message: String::from("TODO:"),
-      position: -1,
+      position: 999,
     })
   }
 
@@ -524,7 +524,7 @@ impl Parser<'_> {
   ) -> Result<Definition, StructureError> {
     Err(StructureError {
       message: String::from("TODO:"),
-      position: -1,
+      position: 999,
     })
   }
 
@@ -534,7 +534,7 @@ impl Parser<'_> {
   ) -> Result<Definition, StructureError> {
     Err(StructureError {
       message: String::from("TODO:"),
-      position: -1,
+      position: 999,
     })
   }
 
@@ -544,7 +544,7 @@ impl Parser<'_> {
   ) -> Result<Definition, StructureError> {
     Err(StructureError {
       message: String::from("TODO:"),
-      position: -1,
+      position: 999,
     })
   }
 
@@ -554,56 +554,56 @@ impl Parser<'_> {
   ) -> Result<Definition, StructureError> {
     Err(StructureError {
       message: String::from("TODO:"),
-      position: -1,
+      position: 999,
     })
   }
 
   fn parse_schema_extension(&mut self) -> Result<Definition, StructureError> {
     Err(StructureError {
       message: String::from("TODO:"),
-      position: -1,
+      position: 999,
     })
   }
 
   fn parse_scalar_extension(&mut self) -> Result<Definition, StructureError> {
     Err(StructureError {
       message: String::from("TODO:"),
-      position: -1,
+      position: 999,
     })
   }
 
   fn parse_object_type_extension(&mut self) -> Result<Definition, StructureError> {
     Err(StructureError {
       message: String::from("TODO:"),
-      position: -1,
+      position: 999,
     })
   }
 
   fn parse_interface_type_extension(&mut self) -> Result<Definition, StructureError> {
     Err(StructureError {
       message: String::from("TODO:"),
-      position: -1,
+      position: 999,
     })
   }
 
   fn parse_union_type_extension(&mut self) -> Result<Definition, StructureError> {
     Err(StructureError {
       message: String::from("TODO:"),
-      position: -1,
+      position: 999,
     })
   }
 
   fn parse_enum_type_extension(&mut self) -> Result<Definition, StructureError> {
     Err(StructureError {
       message: String::from("TODO:"),
-      position: -1,
+      position: 999,
     })
   }
 
   fn parse_input_object_type_extension(&mut self) -> Result<Definition, StructureError> {
     Err(StructureError {
       message: String::from("TODO:"),
-      position: -1,
+      position: 999,
     })
   }
 

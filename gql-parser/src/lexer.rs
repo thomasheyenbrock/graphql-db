@@ -1,18 +1,12 @@
 use std::fmt;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct SyntaxError {
   pub message: String,
-  pub position: i32,
+  pub position: usize,
 }
 
-impl PartialEq for SyntaxError {
-  fn eq(&self, other: &Self) -> bool {
-    self.message == other.message && self.position == other.position
-  }
-}
-
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum TokenKind {
   // Start end end of file
   SOF,
@@ -56,121 +50,20 @@ impl fmt::Display for TokenKind {
   }
 }
 
-impl PartialEq for TokenKind {
-  fn eq(&self, other: &Self) -> bool {
-    match self {
-      TokenKind::SOF => match other {
-        TokenKind::SOF => true,
-        _ => false,
-      },
-      TokenKind::EOF => match other {
-        TokenKind::EOF => true,
-        _ => false,
-      },
-      TokenKind::Comment { value: value_self } => match other {
-        TokenKind::Comment { value: value_other } => value_self == value_other,
-        _ => false,
-      },
-      TokenKind::ExclamationMark => match other {
-        TokenKind::ExclamationMark => true,
-        _ => false,
-      },
-      TokenKind::DollarSign => match other {
-        TokenKind::DollarSign => true,
-        _ => false,
-      },
-      TokenKind::Ampersand => match other {
-        TokenKind::Ampersand => true,
-        _ => false,
-      },
-      TokenKind::RoundBracketOpening => match other {
-        TokenKind::RoundBracketOpening => true,
-        _ => false,
-      },
-      TokenKind::RoundBracketClosing => match other {
-        TokenKind::RoundBracketClosing => true,
-        _ => false,
-      },
-      TokenKind::Spread => match other {
-        TokenKind::Spread => true,
-        _ => false,
-      },
-      TokenKind::Colon => match other {
-        TokenKind::Colon => true,
-        _ => false,
-      },
-      TokenKind::EqualsSign => match other {
-        TokenKind::EqualsSign => true,
-        _ => false,
-      },
-      TokenKind::AtSign => match other {
-        TokenKind::AtSign => true,
-        _ => false,
-      },
-      TokenKind::SquareBracketOpening => match other {
-        TokenKind::SquareBracketOpening => true,
-        _ => false,
-      },
-      TokenKind::SquareBracketClosing => match other {
-        TokenKind::SquareBracketClosing => true,
-        _ => false,
-      },
-      TokenKind::CurlyBracketOpening => match other {
-        TokenKind::CurlyBracketOpening => true,
-        _ => false,
-      },
-      TokenKind::VerticalBar => match other {
-        TokenKind::VerticalBar => true,
-        _ => false,
-      },
-      TokenKind::CurlyBracketClosing => match other {
-        TokenKind::CurlyBracketClosing => true,
-        _ => false,
-      },
-      TokenKind::Name { value: value_self } => match other {
-        TokenKind::Name { value: value_other } => value_self == value_other,
-        _ => false,
-      },
-      TokenKind::Int { value: value_self } => match other {
-        TokenKind::Int { value: value_other } => value_self == value_other,
-        _ => false,
-      },
-      TokenKind::Float { value: value_self } => match other {
-        TokenKind::Float { value: value_other } => value_self == value_other,
-        _ => false,
-      },
-      TokenKind::String { value: value_self } => match other {
-        TokenKind::String { value: value_other } => value_self == value_other,
-        _ => false,
-      },
-    }
-  }
-}
-
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Token {
   pub kind: TokenKind,
-  pub start: i32,
-  pub end: i32,
-  pub line: i32,
-  pub column: i32,
-}
-
-impl PartialEq for Token {
-  fn eq(&self, other: &Self) -> bool {
-    self.kind == other.kind
-      && self.start == other.start
-      && self.end == other.end
-      && self.line == other.line
-      && self.column == other.column
-  }
+  pub start: usize,
+  pub end: usize,
+  pub line: usize,
+  pub column: usize,
 }
 
 pub struct Lexer<'a> {
   chars: std::iter::Peekable<std::str::Chars<'a>>,
-  position: i32,
-  line: i32,
-  column: i32,
+  position: usize,
+  line: usize,
+  column: usize,
   peeked: Option<Token>,
   error: Option<String>,
   is_done: bool,
@@ -958,7 +851,7 @@ impl Lexer<'_> {
     return Ok(token_vec);
   }
 
-  pub fn get_position(&self) -> i32 {
+  pub fn get_position(&self) -> usize {
     return self.position;
   }
 }
