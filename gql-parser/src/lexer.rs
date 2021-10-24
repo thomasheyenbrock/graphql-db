@@ -252,18 +252,17 @@ impl Lexer<'_> {
           value.push(self.next_char().unwrap());
         }
 
-        let comment_token = Token {
+        return Ok(Some(Token {
           kind: TokenKind::Comment { value },
           start,
           end: self.position,
           line: self.line,
           column: start_column,
-        };
-        return Ok(Some(comment_token));
+        }));
       }
       // Punctuators
       Some(&'!') => {
-        let exclamation_mark_token = Token {
+        let token = Token {
           kind: TokenKind::ExclamationMark,
           start: self.position,
           end: self.position + 1,
@@ -271,10 +270,10 @@ impl Lexer<'_> {
           column: self.column,
         };
         self.next_char();
-        return Ok(Some(exclamation_mark_token));
+        return Ok(Some(token));
       }
       Some(&'$') => {
-        let dollar_token = Token {
+        let token = Token {
           kind: TokenKind::DollarSign,
           start: self.position,
           end: self.position + 1,
@@ -282,10 +281,10 @@ impl Lexer<'_> {
           column: self.column,
         };
         self.next_char();
-        return Ok(Some(dollar_token));
+        return Ok(Some(token));
       }
       Some(&'&') => {
-        let ampersand_token = Token {
+        let token = Token {
           kind: TokenKind::Ampersand,
           start: self.position,
           end: self.position + 1,
@@ -293,10 +292,10 @@ impl Lexer<'_> {
           column: self.column,
         };
         self.next_char();
-        return Ok(Some(ampersand_token));
+        return Ok(Some(token));
       }
       Some(&'(') => {
-        let round_bracket_opening_token = Token {
+        let token = Token {
           kind: TokenKind::RoundBracketOpening,
           start: self.position,
           end: self.position + 1,
@@ -304,10 +303,10 @@ impl Lexer<'_> {
           column: self.column,
         };
         self.next_char();
-        return Ok(Some(round_bracket_opening_token));
+        return Ok(Some(token));
       }
       Some(&')') => {
-        let round_bracket_closing_token = Token {
+        let token = Token {
           kind: TokenKind::RoundBracketClosing,
           start: self.position,
           end: self.position + 1,
@@ -315,7 +314,7 @@ impl Lexer<'_> {
           column: self.column,
         };
         self.next_char();
-        return Ok(Some(round_bracket_closing_token));
+        return Ok(Some(token));
       }
       Some(&'.') => {
         // At this point we expect to see two more dots as the only
@@ -336,17 +335,16 @@ impl Lexer<'_> {
           self.next_char();
         }
 
-        let spread_token = Token {
+        return Ok(Some(Token {
           kind: TokenKind::Spread,
           start: self.position - 3,
           end: self.position,
           line: self.line,
           column: self.column - 3,
-        };
-        return Ok(Some(spread_token));
+        }));
       }
       Some(&':') => {
-        let colon_token = Token {
+        let token = Token {
           kind: TokenKind::Colon,
           start: self.position,
           end: self.position + 1,
@@ -354,10 +352,10 @@ impl Lexer<'_> {
           column: self.column,
         };
         self.next_char();
-        return Ok(Some(colon_token));
+        return Ok(Some(token));
       }
       Some(&'=') => {
-        let equals_sign_token = Token {
+        let token = Token {
           kind: TokenKind::EqualsSign,
           start: self.position,
           end: self.position + 1,
@@ -365,10 +363,10 @@ impl Lexer<'_> {
           column: self.column,
         };
         self.next_char();
-        return Ok(Some(equals_sign_token));
+        return Ok(Some(token));
       }
       Some(&'@') => {
-        let at_sign_token = Token {
+        let token = Token {
           kind: TokenKind::AtSign,
           start: self.position,
           end: self.position + 1,
@@ -376,10 +374,10 @@ impl Lexer<'_> {
           column: self.column,
         };
         self.next_char();
-        return Ok(Some(at_sign_token));
+        return Ok(Some(token));
       }
       Some(&'[') => {
-        let square_bracket_opening_token = Token {
+        let token = Token {
           kind: TokenKind::SquareBracketOpening,
           start: self.position,
           end: self.position + 1,
@@ -387,10 +385,10 @@ impl Lexer<'_> {
           column: self.column,
         };
         self.next_char();
-        return Ok(Some(square_bracket_opening_token));
+        return Ok(Some(token));
       }
       Some(&']') => {
-        let square_bracket_closing_token = Token {
+        let token = Token {
           kind: TokenKind::SquareBracketClosing,
           start: self.position,
           end: self.position + 1,
@@ -398,10 +396,10 @@ impl Lexer<'_> {
           column: self.column,
         };
         self.next_char();
-        return Ok(Some(square_bracket_closing_token));
+        return Ok(Some(token));
       }
       Some(&'{') => {
-        let curly_bracket_opening_token = Token {
+        let token = Token {
           kind: TokenKind::CurlyBracketOpening,
           start: self.position,
           end: self.position + 1,
@@ -409,10 +407,10 @@ impl Lexer<'_> {
           column: self.column,
         };
         self.next_char();
-        return Ok(Some(curly_bracket_opening_token));
+        return Ok(Some(token));
       }
       Some(&'|') => {
-        let vertical_bar_token = Token {
+        let token = Token {
           kind: TokenKind::VerticalBar,
           start: self.position,
           end: self.position + 1,
@@ -420,10 +418,10 @@ impl Lexer<'_> {
           column: self.column,
         };
         self.next_char();
-        return Ok(Some(vertical_bar_token));
+        return Ok(Some(token));
       }
       Some(&'}') => {
-        let curly_bracket_closing_token = Token {
+        let token = Token {
           kind: TokenKind::CurlyBracketClosing,
           start: self.position,
           end: self.position + 1,
@@ -431,7 +429,7 @@ impl Lexer<'_> {
           column: self.column,
         };
         self.next_char();
-        return Ok(Some(curly_bracket_closing_token));
+        return Ok(Some(token));
       }
       // Name token
       Some(&('A'..='Z')) | Some(&('a'..='z')) | Some(&'_') => {
