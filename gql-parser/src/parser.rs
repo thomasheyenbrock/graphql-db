@@ -502,11 +502,42 @@ impl Parser<'_> {
     })
   }
 
-  fn parse_variable_definitions(&mut self) -> Result<Vec<VariableDefinition>, SyntaxError> {
+  fn parse_variable_definition(&mut self) -> Result<VariableDefinition, SyntaxError> {
     Err(SyntaxError {
       message: String::from("TODO:"),
       position: 999,
     })
+  }
+
+  fn parse_variable_definitions(&mut self) -> Result<Vec<VariableDefinition>, SyntaxError> {
+    self.parse_token(lexer::TokenKind::RoundBracketOpening)?;
+    let mut variable_definitions = vec![];
+    let mut next = self.peek_token(Some(lexer::TokenKind::DollarSign))?;
+
+    // There must be at least one variable
+    if next.kind != lexer::TokenKind::DollarSign {
+      return Err(SyntaxError {
+        message: format!("Expected \"$\", found {}.", next),
+        position: self.lexer.get_position(),
+      });
+    }
+
+    while next.kind == lexer::TokenKind::DollarSign {
+      variable_definitions.push(self.parse_variable_definition()?);
+      next = self.peek_token(Some(lexer::TokenKind::DollarSign))?;
+    }
+
+    if next.kind != lexer::TokenKind::RoundBracketClosing {
+      return Err(SyntaxError {
+        // Align with graphql-js: The error message always expects another
+        // variable instead of a closing bracket.
+        message: format!("Expected \"$\", found {}.", next),
+        position: self.lexer.get_position(),
+      });
+    }
+    self.next_token(Some(lexer::TokenKind::DollarSign))?;
+
+    Ok(variable_definitions)
   }
 
   fn parse_selection_set(&mut self) -> Result<SelectionSet, SyntaxError> {
