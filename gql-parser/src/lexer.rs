@@ -120,11 +120,11 @@ pub enum TokenKind {
 impl fmt::Display for TokenKind {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
     match self {
-      TokenKind::Comment { .. } => write!(f, "Comment"),
-      TokenKind::Name { .. } => write!(f, "Name"),
-      TokenKind::Int { .. } => write!(f, "Int"),
-      TokenKind::Float { .. } => write!(f, "Float"),
-      TokenKind::String { .. } => write!(f, "String"),
+      TokenKind::Comment => write!(f, "Comment"),
+      TokenKind::Name => write!(f, "Name"),
+      TokenKind::Int => write!(f, "Int"),
+      TokenKind::Float => write!(f, "Float"),
+      TokenKind::String => write!(f, "String"),
       _ => write!(f, "{:?}", self),
     }
   }
@@ -138,6 +138,21 @@ pub struct Token {
   pub end: usize,
   pub line: usize,
   pub column: usize,
+}
+
+impl fmt::Display for Token {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    match self.kind {
+      TokenKind::SOF => write!(f, "<SOF>"),
+      TokenKind::EOF => write!(f, "<EOF>"),
+      TokenKind::Comment => write!(f, "Comment \"{}\"", self.value),
+      TokenKind::Name => write!(f, "Name \"{}\"", self.value),
+      TokenKind::Int => write!(f, "Int \"{}\"", self.value),
+      TokenKind::Float => write!(f, "Float \"{}\"", self.value),
+      TokenKind::String => write!(f, "String \"{}\"", self.value),
+      _ => write!(f, "\"{}\"", self.value),
+    }
+  }
 }
 
 pub struct Lexer<'a> {

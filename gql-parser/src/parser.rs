@@ -682,22 +682,14 @@ impl Parser<'_> {
           self.parse_definition(TypeModifier::Extension)
         } else {
           Err(SyntaxError {
-            message: format!("Unexpected name \"{}\"", token.value),
+            message: format!("Unexpected {}.", token),
             position: token.start,
           })
         }
       }
       lexer::TokenKind::String => self.parse_definition(TypeModifier::Description { token }),
-      lexer::TokenKind::Int => Err(SyntaxError {
-        message: format!("Unexpected Int \"{}\".", token.value),
-        position: token.start,
-      }),
-      lexer::TokenKind::Float => Err(SyntaxError {
-        message: format!("Unexpected Float \"{}\".", token.value),
-        position: token.start,
-      }),
-      kind => Err(SyntaxError {
-        message: format!("Unexpected \"{}\".", kind),
+      _ => Err(SyntaxError {
+        message: format!("Unexpected {}.", token),
         position: token.start,
       }),
     }
