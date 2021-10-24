@@ -2,119 +2,119 @@ use crate::error::SyntaxError;
 use crate::lexer;
 use vec1::Vec1;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Loc {
   pub start_token: lexer::Token,
   pub end_token: lexer::Token,
 }
 
 #[allow(non_camel_case_types)]
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum OperationType {
   query,
   mutation,
   subscription,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Name {
   pub value: String,
   pub loc: Loc,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct NamedType {
   pub name: Name,
   pub loc: Loc,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct ListType {
   pub gql_type: Box<Type>,
   pub loc: Loc,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct NonNullType {
   pub gql_type: NullableType,
   pub loc: Loc,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum NullableType {
   NamedType(NamedType),
   ListType(ListType),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Type {
   NamedType(NamedType),
   ListType(ListType),
   NonNullType(NonNullType),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Variable {
   pub name: Name,
   pub loc: Loc,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct IntValue {
   pub value: String,
   pub loc: Loc,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct FloatValue {
   pub value: String,
   pub loc: Loc,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct StringValue {
   pub value: String,
   pub block: bool,
   pub loc: Loc,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct BooleanValue {
   pub value: bool,
   pub loc: Loc,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct NullValue {
   pub loc: Loc,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct EnumValue {
   pub value: String,
   pub loc: Loc,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct ListValue {
   pub values: Vec<Value>,
   pub loc: Loc,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct ObjectField {
   pub name: Name,
   pub value: Value,
   pub loc: Loc,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct ObjectValue {
   pub fields: Vec<ObjectField>,
   pub loc: Loc,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Value {
   Variable(Variable),
   IntValue(IntValue),
@@ -127,26 +127,26 @@ pub enum Value {
   ObjectValue(ObjectValue),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct ConstListValue {
   pub values: Vec<ConstValue>,
   pub loc: Loc,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct ConstObjectField {
   pub name: Name,
   pub value: ConstValue,
   pub loc: Loc,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct ConstObjectValue {
   pub fields: Vec<ConstObjectField>,
   pub loc: Loc,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum ConstValue {
   IntValue(IntValue),
   FloatValue(FloatValue),
@@ -158,35 +158,35 @@ pub enum ConstValue {
   ObjectValue(ConstObjectValue),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Argument {
   pub name: Name,
   pub value: Value,
   pub loc: Loc,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct ConstArgument {
   pub name: Name,
   pub value: ConstValue,
   pub loc: Loc,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Directive {
   pub name: Name,
   pub arguments: Vec<Argument>,
   pub loc: Loc,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct ConstDirective {
   pub name: Name,
   pub arguments: Vec<ConstArgument>,
   pub loc: Loc,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct VariableDefinition {
   pub variable: Variable,
   pub gql_type: Type,
@@ -195,7 +195,7 @@ pub struct VariableDefinition {
   pub loc: Loc,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Selection {
   Field {
     name: Name,
@@ -218,20 +218,20 @@ pub enum Selection {
   },
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct SelectionSet {
   pub selections: Vec1<Selection>,
   pub loc: Loc,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct OperationTypeDefinition {
   pub operation: OperationType,
   pub gql_type: NamedType,
   pub loc: Loc,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct InputValueDefinition {
   pub description: Option<StringValue>,
   pub name: Name,
@@ -241,7 +241,7 @@ pub struct InputValueDefinition {
   pub loc: Loc,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct FieldDefinition {
   pub description: Option<StringValue>,
   pub name: Name,
@@ -251,7 +251,7 @@ pub struct FieldDefinition {
   pub loc: Loc,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct EnumValueDefinition {
   pub description: Option<StringValue>,
   pub enum_value: EnumValue,
@@ -260,7 +260,7 @@ pub struct EnumValueDefinition {
 }
 
 #[allow(non_camel_case_types)]
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum DirectiveLocation {
   // Executable
   QUERY,
@@ -285,7 +285,7 @@ pub enum DirectiveLocation {
   INPUT_FIELD_DEFINITION,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Definition {
   OperationDefinition {
     operation: OperationType,
@@ -403,7 +403,7 @@ pub enum Definition {
   },
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Document {
   pub definitions: Vec1<Definition>,
   pub loc: Loc,
@@ -708,7 +708,7 @@ impl Parser<'_> {
     }
   }
 
-  pub fn parse(&mut self) -> Result<Document, SyntaxError> {
+  pub fn parse_document(&mut self) -> Result<Document, SyntaxError> {
     let start_token = self.parse_token(lexer::TokenKind::SOF)?;
     let mut definitions = vec1![self.parse_definition(TypeModifier::None)?];
     while self.lexer.has_more() {
@@ -724,4 +724,8 @@ impl Parser<'_> {
       },
     })
   }
+}
+
+pub fn parse(query: &str) -> Result<Document, SyntaxError> {
+  Parser::new(query).parse_document()
 }
