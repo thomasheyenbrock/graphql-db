@@ -206,23 +206,17 @@ impl<'a> Lexer<'a> {
       }
     }
 
-    if self.peek_char() == None {
-      // Avoid returning EOF multiple times
-      if self.is_done {
-        return Ok(None);
-      } else {
+    match self.peek_char() {
+      None => {
         self.is_done = true;
-        return Ok(Some(Token {
+        Ok(Some(Token {
           kind: TokenKind::EOF,
           start: self.position,
           end: self.position,
           line: self.line,
           column: self.column,
-        }));
+        }))
       }
-    }
-
-    match self.peek_char() {
       // ASCII controll characters are not valid source characters
       // (except for CHARACTER TABULATION, LINE FEED, and CARRIAGE RETURN)
       character
@@ -770,6 +764,10 @@ impl<'a> Lexer<'a> {
         message: String::from((&self.error).as_ref().unwrap()),
         position: self.position,
       });
+    }
+
+    if self.is_done {
+      return Ok(None);
     }
 
     // If already peeked, then return the peeked token
