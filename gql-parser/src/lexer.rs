@@ -1,5 +1,90 @@
 use std::fmt;
 
+fn print_character(c: &char) -> String {
+  let code = *c as i16;
+  if code > 0x001f && code < 0x007f {
+    // Print non-control ASCII characters as is
+    return format!("\"{}\"", c);
+  } else if code == 0x0008 {
+    return String::from("\"\\b\"");
+  } else if code == 0x000c {
+    return String::from("\"\\f\"");
+  } else {
+    // Print upper-case encoding for all other characters
+    return format!("\"\\u{:0>4}\"", format!("{:X}", code));
+  }
+}
+
+fn split_by_line_terminator(value: &str) -> Vec<&str> {
+  let mut lines: Vec<&str> = Vec::new();
+  for l1 in value.split("\r\n") {
+    for l2 in l1.split("\r") {
+      for l3 in l2.split("\n") {
+        lines.push(l3)
+      }
+    }
+  }
+  return lines;
+}
+
+fn calculate_indent(value: &str) -> usize {
+  let mut indent = 0;
+  let mut chars = value.chars();
+  let mut next = chars.next();
+  while next == Some(' ') || next == Some('\t') {
+    indent += 1;
+    next = chars.next();
+  }
+  return indent;
+}
+
+fn contains_only_whitespace(value: &str) -> bool {
+  return value.chars().all(|c| c == ' ' || c == '\t');
+}
+
+fn block_string_value(raw_value: &str) -> String {
+  let mut lines = split_by_line_terminator(raw_value);
+
+  let mut common_indent: Option<usize> = None;
+
+  for line in lines.iter().skip(1) {
+    let length = line.len();
+    let indent = calculate_indent(line);
+    if indent < length {
+      if common_indent == None || indent < common_indent.unwrap() {
+        common_indent = Some(indent);
+      }
+    }
+  }
+
+  if common_indent != None && lines.len() > 0 {
+    let common_indent_value = common_indent.unwrap();
+    let mut lines_without_indent = lines
+      .iter()
+      .skip(1)
+      .map(|line| {
+        if line.len() >= common_indent_value {
+          &line[common_indent_value..]
+        } else {
+          line
+        }
+      })
+      .collect();
+    lines = vec![lines[0]];
+    lines.append(&mut lines_without_indent);
+  }
+
+  while lines.len() > 0 && contains_only_whitespace(lines[0]) {
+    lines.remove(0);
+  }
+
+  while lines.len() > 0 && contains_only_whitespace(lines[lines.len() - 1]) {
+    lines.pop();
+  }
+
+  return lines.join("\n");
+}
+
 #[derive(Debug, PartialEq)]
 pub struct SyntaxError {
   pub message: String,
@@ -82,95 +167,10 @@ impl Lexer<'_> {
     }
   }
 
-  fn print_character(c: &char) -> String {
-    let code = *c as i16;
-    if code > 0x001f && code < 0x007f {
-      // Print non-control ASCII characters as is
-      return format!("\"{}\"", c);
-    } else if code == 0x0008 {
-      return String::from("\"\\b\"");
-    } else if code == 0x000c {
-      return String::from("\"\\f\"");
-    } else {
-      // Print upper-case encoding for all other characters
-      return format!("\"\\u{:0>4}\"", format!("{:X}", code));
-    }
-  }
-
   fn next_char(&mut self) -> Option<char> {
     self.position += 1;
     self.column += 1;
     return self.chars.next();
-  }
-
-  fn split_by_line_terminator(value: &str) -> Vec<&str> {
-    let mut lines: Vec<&str> = Vec::new();
-    for l1 in value.split("\r\n") {
-      for l2 in l1.split("\r") {
-        for l3 in l2.split("\n") {
-          lines.push(l3)
-        }
-      }
-    }
-    return lines;
-  }
-
-  fn calculate_indent(value: &str) -> usize {
-    let mut indent = 0;
-    let mut chars = value.chars();
-    let mut next = chars.next();
-    while next == Some(' ') || next == Some('\t') {
-      indent += 1;
-      next = chars.next();
-    }
-    return indent;
-  }
-
-  fn contains_only_whitespace(value: &str) -> bool {
-    return value.chars().all(|c| c == ' ' || c == '\t');
-  }
-
-  fn block_string_value(raw_value: &str) -> String {
-    let mut lines = Lexer::split_by_line_terminator(raw_value);
-
-    let mut common_indent: Option<usize> = None;
-
-    for line in lines.iter().skip(1) {
-      let length = line.len();
-      let indent = Lexer::calculate_indent(line);
-      if indent < length {
-        if common_indent == None || indent < common_indent.unwrap() {
-          common_indent = Some(indent);
-        }
-      }
-    }
-
-    if common_indent != None && lines.len() > 0 {
-      let common_indent_value = common_indent.unwrap();
-      let mut lines_without_indent = lines
-        .iter()
-        .skip(1)
-        .map(|line| {
-          if line.len() >= common_indent_value {
-            &line[common_indent_value..]
-          } else {
-            line
-          }
-        })
-        .collect();
-      lines = vec![lines[0]];
-      lines.append(&mut lines_without_indent);
-    }
-
-    while lines.len() > 0 && Lexer::contains_only_whitespace(lines[0]) {
-      lines.remove(0);
-    }
-
-    while lines.len() > 0 && Lexer::contains_only_whitespace(lines[lines.len() - 1]) {
-      lines.pop();
-    }
-
-    return lines.join("\n");
   }
 
   fn next_no_error(&mut self) -> Result<Option<Token>, String> {
@@ -229,7 +229,7 @@ impl Lexer<'_> {
       | Some(&('\u{e}'..='\u{1f}'))) => {
         return Err(format!(
           "Cannot contain the invalid character {}.",
-          Lexer::print_character(character.unwrap())
+          print_character(character.unwrap())
         ));
       }
       // A comment is an ignored token, but since it does contain human
@@ -634,7 +634,7 @@ impl Lexer<'_> {
 
             return Ok(Some(Token {
               kind: TokenKind::String {
-                value: Lexer::block_string_value(&value[..value.len() - 3]),
+                value: block_string_value(&value[..value.len() - 3]),
               },
               start,
               end: self.position,
@@ -758,7 +758,7 @@ impl Lexer<'_> {
         if character == None {
           String::from("<EOF>")
         } else {
-          Lexer::print_character(character.unwrap())
+          print_character(character.unwrap())
         }
       )),
     }
