@@ -177,18 +177,17 @@ impl<'a> Lexer<'a> {
     self.chars.peek()
   }
 
-  fn next_no_error(&mut self) -> Result<Option<Token>, String> {
+  fn next_token(&mut self) -> Result<Option<Token>, String> {
     if self.line == 0 {
-      let sof = Token {
-        kind: TokenKind::SOF,
-        start: self.position,
-        end: self.position,
-        line: self.line,
-        column: self.column,
-      };
       self.line += 1;
       self.column += 1;
-      return Ok(Some(sof));
+      return Ok(Some(Token {
+        kind: TokenKind::SOF,
+        start: 0,
+        end: 0,
+        line: 0,
+        column: 0,
+      }));
     }
 
     // Skip ignores tokens
@@ -780,7 +779,7 @@ impl<'a> Lexer<'a> {
       return Ok(peeked);
     }
 
-    match self.next_no_error() {
+    match self.next_token() {
       Ok(token) => Ok(token),
       Err(error) => {
         self.error = Some(error.to_string());
@@ -807,7 +806,7 @@ impl<'a> Lexer<'a> {
       return Ok(peeked);
     }
 
-    match self.next_no_error() {
+    match self.next_token() {
       Ok(mut token) => {
         self.peeked = std::mem::take(&mut token);
         return Ok(token);
