@@ -611,40 +611,40 @@ impl Parser<'_> {
       lexer::TokenKind::CurlyBracketOpening => {
         self.parse_operation_definition(OperationTypeWithShorthand::Shorthand)
       }
-      lexer::TokenKind::Name { value } => {
-        if value == "query" && matches!(modifier, TypeModifier::None) {
+      lexer::TokenKind::Name => {
+        if token.value == "query" && matches!(modifier, TypeModifier::None) {
           self.parse_operation_definition(OperationTypeWithShorthand::NonShorthand {
             operation_type: OperationType::query,
           })
-        } else if value == "mutation" && matches!(modifier, TypeModifier::None) {
+        } else if token.value == "mutation" && matches!(modifier, TypeModifier::None) {
           self.parse_operation_definition(OperationTypeWithShorthand::NonShorthand {
             operation_type: OperationType::mutation,
           })
-        } else if value == "subscription" && matches!(modifier, TypeModifier::None) {
+        } else if token.value == "subscription" && matches!(modifier, TypeModifier::None) {
           self.parse_operation_definition(OperationTypeWithShorthand::NonShorthand {
             operation_type: OperationType::subscription,
           })
-        } else if value == "fragment" && matches!(modifier, TypeModifier::None) {
+        } else if token.value == "fragment" && matches!(modifier, TypeModifier::None) {
           self.parse_fragment_definition()
-        } else if value == "schema" {
+        } else if token.value == "schema" {
           match modifier {
             TypeModifier::None => self.parse_schema_definition(None),
             TypeModifier::Description { token } => self.parse_schema_definition(Some(token)),
             TypeModifier::Extension => self.parse_schema_extension(),
           }
-        } else if value == "scalar" && !matches!(modifier, TypeModifier::Extension) {
+        } else if token.value == "scalar" && !matches!(modifier, TypeModifier::Extension) {
           match modifier {
             TypeModifier::None => self.parse_scalar_type_definition(None),
             TypeModifier::Description { token } => self.parse_scalar_type_definition(Some(token)),
             TypeModifier::Extension => self.parse_scalar_extension(),
           }
-        } else if value == "type" && !matches!(modifier, TypeModifier::Extension) {
+        } else if token.value == "type" && !matches!(modifier, TypeModifier::Extension) {
           match modifier {
             TypeModifier::None => self.parse_object_type_definition(None),
             TypeModifier::Description { token } => self.parse_object_type_definition(Some(token)),
             TypeModifier::Extension => self.parse_object_type_extension(),
           }
-        } else if value == "interface" && !matches!(modifier, TypeModifier::Extension) {
+        } else if token.value == "interface" && !matches!(modifier, TypeModifier::Extension) {
           match modifier {
             TypeModifier::None => self.parse_interface_type_definition(None),
             TypeModifier::Description { token } => {
@@ -652,19 +652,19 @@ impl Parser<'_> {
             }
             TypeModifier::Extension => self.parse_interface_type_extension(),
           }
-        } else if value == "union" && !matches!(modifier, TypeModifier::Extension) {
+        } else if token.value == "union" && !matches!(modifier, TypeModifier::Extension) {
           match modifier {
             TypeModifier::None => self.parse_union_type_definition(None),
             TypeModifier::Description { token } => self.parse_union_type_definition(Some(token)),
             TypeModifier::Extension => self.parse_union_type_extension(),
           }
-        } else if value == "enum" && !matches!(modifier, TypeModifier::Extension) {
+        } else if token.value == "enum" && !matches!(modifier, TypeModifier::Extension) {
           match modifier {
             TypeModifier::None => self.parse_enum_type_definition(None),
             TypeModifier::Description { token } => self.parse_enum_type_definition(Some(token)),
             TypeModifier::Extension => self.parse_enum_type_extension(),
           }
-        } else if value == "input" && !matches!(modifier, TypeModifier::Extension) {
+        } else if token.value == "input" && !matches!(modifier, TypeModifier::Extension) {
           match modifier {
             TypeModifier::None => self.parse_input_object_type_definition(None),
             TypeModifier::Description { token } => {
@@ -672,7 +672,7 @@ impl Parser<'_> {
             }
             TypeModifier::Extension => self.parse_input_object_type_extension(),
           }
-        } else if value == "directive" && !matches!(modifier, TypeModifier::Extension) {
+        } else if token.value == "directive" && !matches!(modifier, TypeModifier::Extension) {
           match modifier {
             TypeModifier::None => self.parse_directive_definition(None),
             TypeModifier::Description { token } => self.parse_directive_definition(Some(token)),
@@ -681,24 +681,22 @@ impl Parser<'_> {
               position: token.start,
             }),
           }
-        } else if value == "extend" && matches!(modifier, TypeModifier::None) {
+        } else if token.value == "extend" && matches!(modifier, TypeModifier::None) {
           self.parse_definition(TypeModifier::Extension)
         } else {
           Err(SyntaxError {
-            message: format!("Unexpected name \"{}\"", value),
+            message: format!("Unexpected name \"{}\"", token.value),
             position: token.start,
           })
         }
       }
-      lexer::TokenKind::String { value: _ } => {
-        self.parse_definition(TypeModifier::Description { token })
-      }
-      lexer::TokenKind::Int { value } => Err(SyntaxError {
-        message: format!("Unexpected Int \"{}\".", value),
+      lexer::TokenKind::String => self.parse_definition(TypeModifier::Description { token }),
+      lexer::TokenKind::Int => Err(SyntaxError {
+        message: format!("Unexpected Int \"{}\".", token.value),
         position: token.start,
       }),
-      lexer::TokenKind::Float { value } => Err(SyntaxError {
-        message: format!("Unexpected Float \"{}\".", value),
+      lexer::TokenKind::Float => Err(SyntaxError {
+        message: format!("Unexpected Float \"{}\".", token.value),
         position: token.start,
       }),
       kind => Err(SyntaxError {

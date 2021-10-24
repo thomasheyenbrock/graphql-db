@@ -93,7 +93,7 @@ pub enum TokenKind {
   EOF,
 
   // Ignored token kinds
-  Comment { value: String },
+  Comment,
 
   // Lexical token kinds
   ExclamationMark,
@@ -111,10 +111,10 @@ pub enum TokenKind {
   VerticalBar,
   CurlyBracketClosing,
 
-  Name { value: String },
-  Int { value: String },
-  Float { value: String },
-  String { value: String },
+  Name,
+  Int,
+  Float,
+  String,
 }
 
 impl fmt::Display for TokenKind {
@@ -133,6 +133,7 @@ impl fmt::Display for TokenKind {
 #[derive(Debug, PartialEq)]
 pub struct Token {
   pub kind: TokenKind,
+  pub value: String,
   pub start: usize,
   pub end: usize,
   pub line: usize,
@@ -178,6 +179,7 @@ impl<'a> Lexer<'a> {
       self.column += 1;
       return Ok(Some(Token {
         kind: TokenKind::SOF,
+        value: String::from("<SOF>"),
         start: 0,
         end: 0,
         line: 0,
@@ -206,6 +208,7 @@ impl<'a> Lexer<'a> {
         self.is_done = true;
         Ok(Some(Token {
           kind: TokenKind::EOF,
+          value: String::from("<EOF>"),
           start: self.position,
           end: self.position,
           line: self.line,
@@ -243,7 +246,8 @@ impl<'a> Lexer<'a> {
         }
 
         Ok(Some(Token {
-          kind: TokenKind::Comment { value },
+          kind: TokenKind::Comment,
+          value,
           start,
           end: self.position,
           line: self.line,
@@ -254,6 +258,7 @@ impl<'a> Lexer<'a> {
       Some(&'!') => {
         let token = Token {
           kind: TokenKind::ExclamationMark,
+          value: String::from("!"),
           start: self.position,
           end: self.position + 1,
           line: self.line,
@@ -265,6 +270,7 @@ impl<'a> Lexer<'a> {
       Some(&'$') => {
         let token = Token {
           kind: TokenKind::DollarSign,
+          value: String::from("$"),
           start: self.position,
           end: self.position + 1,
           line: self.line,
@@ -276,6 +282,7 @@ impl<'a> Lexer<'a> {
       Some(&'&') => {
         let token = Token {
           kind: TokenKind::Ampersand,
+          value: String::from("&"),
           start: self.position,
           end: self.position + 1,
           line: self.line,
@@ -287,6 +294,7 @@ impl<'a> Lexer<'a> {
       Some(&'(') => {
         let token = Token {
           kind: TokenKind::RoundBracketOpening,
+          value: String::from("("),
           start: self.position,
           end: self.position + 1,
           line: self.line,
@@ -298,6 +306,7 @@ impl<'a> Lexer<'a> {
       Some(&')') => {
         let token = Token {
           kind: TokenKind::RoundBracketClosing,
+          value: String::from(")"),
           start: self.position,
           end: self.position + 1,
           line: self.line,
@@ -327,6 +336,7 @@ impl<'a> Lexer<'a> {
 
         Ok(Some(Token {
           kind: TokenKind::Spread,
+          value: String::from("..."),
           start: self.position - 3,
           end: self.position,
           line: self.line,
@@ -336,6 +346,7 @@ impl<'a> Lexer<'a> {
       Some(&':') => {
         let token = Token {
           kind: TokenKind::Colon,
+          value: String::from(":"),
           start: self.position,
           end: self.position + 1,
           line: self.line,
@@ -347,6 +358,7 @@ impl<'a> Lexer<'a> {
       Some(&'=') => {
         let token = Token {
           kind: TokenKind::EqualsSign,
+          value: String::from("="),
           start: self.position,
           end: self.position + 1,
           line: self.line,
@@ -358,6 +370,7 @@ impl<'a> Lexer<'a> {
       Some(&'@') => {
         let token = Token {
           kind: TokenKind::AtSign,
+          value: String::from("@"),
           start: self.position,
           end: self.position + 1,
           line: self.line,
@@ -369,6 +382,7 @@ impl<'a> Lexer<'a> {
       Some(&'[') => {
         let token = Token {
           kind: TokenKind::SquareBracketOpening,
+          value: String::from("["),
           start: self.position,
           end: self.position + 1,
           line: self.line,
@@ -380,6 +394,7 @@ impl<'a> Lexer<'a> {
       Some(&']') => {
         let token = Token {
           kind: TokenKind::SquareBracketClosing,
+          value: String::from("]"),
           start: self.position,
           end: self.position + 1,
           line: self.line,
@@ -391,6 +406,7 @@ impl<'a> Lexer<'a> {
       Some(&'{') => {
         let token = Token {
           kind: TokenKind::CurlyBracketOpening,
+          value: String::from("{"),
           start: self.position,
           end: self.position + 1,
           line: self.line,
@@ -402,6 +418,7 @@ impl<'a> Lexer<'a> {
       Some(&'|') => {
         let token = Token {
           kind: TokenKind::VerticalBar,
+          value: String::from("|"),
           start: self.position,
           end: self.position + 1,
           line: self.line,
@@ -413,6 +430,7 @@ impl<'a> Lexer<'a> {
       Some(&'}') => {
         let token = Token {
           kind: TokenKind::CurlyBracketClosing,
+          value: String::from("}"),
           start: self.position,
           end: self.position + 1,
           line: self.line,
@@ -438,7 +456,8 @@ impl<'a> Lexer<'a> {
         }
 
         Ok(Some(Token {
-          kind: TokenKind::Name { value },
+          kind: TokenKind::Name,
+          value,
           start,
           end: self.position,
           line: self.line,
@@ -542,9 +561,8 @@ impl<'a> Lexer<'a> {
         if fractional_part == "" && exponent_part == "" {
           // It's an integer
           Ok(Some(Token {
-            kind: TokenKind::Int {
-              value: integer_part,
-            },
+            kind: TokenKind::Int,
+            value: integer_part,
             start,
             end: self.position,
             line: self.line,
@@ -557,7 +575,8 @@ impl<'a> Lexer<'a> {
           value.push_str(&fractional_part);
           value.push_str(&exponent_part);
           Ok(Some(Token {
-            kind: TokenKind::Float { value },
+            kind: TokenKind::Float,
+            value,
             start,
             end: self.position,
             line: self.line,
@@ -621,9 +640,8 @@ impl<'a> Lexer<'a> {
             }
 
             Ok(Some(Token {
-              kind: TokenKind::String {
-                value: block_string_value(&value[..value.len() - 3]),
-              },
+              kind: TokenKind::String,
+              value: block_string_value(&value[..value.len() - 3]),
               start,
               end: self.position,
               line: start_line,
@@ -632,9 +650,8 @@ impl<'a> Lexer<'a> {
           } else {
             // Empty string
             Ok(Some(Token {
-              kind: TokenKind::String {
-                value: String::from(""),
-              },
+              kind: TokenKind::String,
+              value: String::from(""),
               start,
               end: self.position,
               line: self.line,
@@ -730,7 +747,8 @@ impl<'a> Lexer<'a> {
           self.next_char();
 
           Ok(Some(Token {
-            kind: TokenKind::String { value },
+            kind: TokenKind::String,
+            value,
             start,
             end: self.position,
             line: self.line,
@@ -851,11 +869,11 @@ mod lexer {
     assert_eq!(
       tokenize("{ hello }"),
       Ok(vec![
-          Token { kind: TokenKind::SOF,                                   start: 0, end: 0, line: 0, column:  0 },
-          Token { kind: TokenKind::CurlyBracketOpening,                   start: 0, end: 1, line: 1, column:  1 },
-          Token { kind: TokenKind::Name { value: String::from("hello") }, start: 2, end: 7, line: 1, column:  3 },
-          Token { kind: TokenKind::CurlyBracketClosing,                   start: 8, end: 9, line: 1, column:  9 },
-          Token { kind: TokenKind::EOF,                                   start: 9, end: 9, line: 1, column: 10 },
+          Token { kind: TokenKind::SOF,                 value: String::from("<SOF>"), start: 0, end: 0, line: 0, column:  0 },
+          Token { kind: TokenKind::CurlyBracketOpening, value: String::from("{"),     start: 0, end: 1, line: 1, column:  1 },
+          Token { kind: TokenKind::Name,                value: String::from("hello"), start: 2, end: 7, line: 1, column:  3 },
+          Token { kind: TokenKind::CurlyBracketClosing, value: String::from("}"),     start: 8, end: 9, line: 1, column:  9 },
+          Token { kind: TokenKind::EOF,                 value: String::from("<EOF>"), start: 9, end: 9, line: 1, column: 10 },
       ]),
     );
   }
@@ -866,8 +884,8 @@ mod lexer {
     assert_eq!(
       tokenize("\u{feff} \t\n,,,\r,\r\n,,"),
       Ok(vec![
-          Token { kind: TokenKind::SOF, start:  0, end:  0, line: 0, column: 0 },
-          Token { kind: TokenKind::EOF, start: 13, end: 13, line: 4, column: 3 },
+          Token { kind: TokenKind::SOF, value: String::from("<SOF>"), start:  0, end:  0, line: 0, column: 0 },
+          Token { kind: TokenKind::EOF, value: String::from("<EOF>"), start: 13, end: 13, line: 4, column: 3 },
       ]),
     );
   }
@@ -878,32 +896,32 @@ mod lexer {
     assert_eq!(
       tokenize("\n"),
       Ok(vec![
-          Token { kind: TokenKind::SOF, start: 0, end: 0, line: 0, column: 0 },
-          Token { kind: TokenKind::EOF, start: 1, end: 1, line: 2, column: 1 },
+          Token { kind: TokenKind::SOF, value: String::from("<SOF>"), start: 0, end: 0, line: 0, column: 0 },
+          Token { kind: TokenKind::EOF, value: String::from("<EOF>"), start: 1, end: 1, line: 2, column: 1 },
       ]),
     );
     #[cfg_attr(rustfmt, rustfmt_skip)]
     assert_eq!(
       tokenize("\r"),
       Ok(vec![
-          Token { kind: TokenKind::SOF, start: 0, end: 0, line: 0, column: 0 },
-          Token { kind: TokenKind::EOF, start: 1, end: 1, line: 2, column: 1 },
+          Token { kind: TokenKind::SOF, value: String::from("<SOF>"), start: 0, end: 0, line: 0, column: 0 },
+          Token { kind: TokenKind::EOF, value: String::from("<EOF>"), start: 1, end: 1, line: 2, column: 1 },
       ]),
     );
     #[cfg_attr(rustfmt, rustfmt_skip)]
     assert_eq!(
       tokenize("\r\n"),
       Ok(vec![
-          Token { kind: TokenKind::SOF, start: 0, end: 0, line: 0, column: 0 },
-          Token { kind: TokenKind::EOF, start: 2, end: 2, line: 2, column: 1 },
+          Token { kind: TokenKind::SOF, value: String::from("<SOF>"), start: 0, end: 0, line: 0, column: 0 },
+          Token { kind: TokenKind::EOF, value: String::from("<EOF>"), start: 2, end: 2, line: 2, column: 1 },
       ]),
     );
     #[cfg_attr(rustfmt, rustfmt_skip)]
     assert_eq!(
       tokenize("\n\r"),
       Ok(vec![
-          Token { kind: TokenKind::SOF, start: 0, end: 0, line: 0, column: 0 },
-          Token { kind: TokenKind::EOF, start: 2, end: 2, line: 3, column: 1 },
+          Token { kind: TokenKind::SOF, value: String::from("<SOF>"), start: 0, end: 0, line: 0, column: 0 },
+          Token { kind: TokenKind::EOF, value: String::from("<EOF>"), start: 2, end: 2, line: 3, column: 1 },
       ]),
     );
   }
@@ -914,10 +932,10 @@ mod lexer {
     assert_eq!(
       tokenize("\t,,#this is a comment\n,#until the end of file"),
       Ok(vec![
-          Token { kind: TokenKind::SOF,                                                      start:  0, end:  0, line: 0, column:  0 },
-          Token { kind: TokenKind::Comment { value: String::from("this is a comment") },     start:  3, end: 21, line: 1, column:  4 },
-          Token { kind: TokenKind::Comment { value: String::from("until the end of file") }, start: 23, end: 45, line: 2, column:  2 },
-          Token { kind: TokenKind::EOF,                                                      start: 45, end: 45, line: 2, column: 24 },
+          Token { kind: TokenKind::SOF,     value: String::from("<SOF>"),                 start:  0, end:  0, line: 0, column:  0 },
+          Token { kind: TokenKind::Comment, value: String::from("this is a comment"),     start:  3, end: 21, line: 1, column:  4 },
+          Token { kind: TokenKind::Comment, value: String::from("until the end of file"), start: 23, end: 45, line: 2, column:  2 },
+          Token { kind: TokenKind::EOF,     value: String::from("<EOF>"),                 start: 45, end: 45, line: 2, column: 24 },
       ]),
     );
   }
@@ -953,22 +971,22 @@ mod lexer {
     assert_eq!(
       tokenize("!$&()...:=@[]{|}"),
       Ok(vec![
-          Token { kind: TokenKind::SOF,                  start:  0, end:  0, line: 0, column:  0 },
-          Token { kind: TokenKind::ExclamationMark,      start:  0, end:  1, line: 1, column:  1 },
-          Token { kind: TokenKind::DollarSign,           start:  1, end:  2, line: 1, column:  2 },
-          Token { kind: TokenKind::Ampersand,            start:  2, end:  3, line: 1, column:  3 },
-          Token { kind: TokenKind::RoundBracketOpening,  start:  3, end:  4, line: 1, column:  4 },
-          Token { kind: TokenKind::RoundBracketClosing,  start:  4, end:  5, line: 1, column:  5 },
-          Token { kind: TokenKind::Spread,               start:  5, end:  8, line: 1, column:  6 },
-          Token { kind: TokenKind::Colon,                start:  8, end:  9, line: 1, column:  9 },
-          Token { kind: TokenKind::EqualsSign,           start:  9, end: 10, line: 1, column: 10 },
-          Token { kind: TokenKind::AtSign,               start: 10, end: 11, line: 1, column: 11 },
-          Token { kind: TokenKind::SquareBracketOpening, start: 11, end: 12, line: 1, column: 12 },
-          Token { kind: TokenKind::SquareBracketClosing, start: 12, end: 13, line: 1, column: 13 },
-          Token { kind: TokenKind::CurlyBracketOpening,  start: 13, end: 14, line: 1, column: 14 },
-          Token { kind: TokenKind::VerticalBar,          start: 14, end: 15, line: 1, column: 15 },
-          Token { kind: TokenKind::CurlyBracketClosing,  start: 15, end: 16, line: 1, column: 16 },
-          Token { kind: TokenKind::EOF,                  start: 16, end: 16, line: 1, column: 17 },
+          Token { kind: TokenKind::SOF,                  value: String::from("<SOF>"), start:  0, end:  0, line: 0, column:  0 },
+          Token { kind: TokenKind::ExclamationMark,      value: String::from("!"),     start:  0, end:  1, line: 1, column:  1 },
+          Token { kind: TokenKind::DollarSign,           value: String::from("$"),     start:  1, end:  2, line: 1, column:  2 },
+          Token { kind: TokenKind::Ampersand,            value: String::from("&"),     start:  2, end:  3, line: 1, column:  3 },
+          Token { kind: TokenKind::RoundBracketOpening,  value: String::from("("),     start:  3, end:  4, line: 1, column:  4 },
+          Token { kind: TokenKind::RoundBracketClosing,  value: String::from(")"),     start:  4, end:  5, line: 1, column:  5 },
+          Token { kind: TokenKind::Spread,               value: String::from("..."),   start:  5, end:  8, line: 1, column:  6 },
+          Token { kind: TokenKind::Colon,                value: String::from(":"),     start:  8, end:  9, line: 1, column:  9 },
+          Token { kind: TokenKind::EqualsSign,           value: String::from("="),     start:  9, end: 10, line: 1, column: 10 },
+          Token { kind: TokenKind::AtSign,               value: String::from("@"),     start: 10, end: 11, line: 1, column: 11 },
+          Token { kind: TokenKind::SquareBracketOpening, value: String::from("["),     start: 11, end: 12, line: 1, column: 12 },
+          Token { kind: TokenKind::SquareBracketClosing, value: String::from("]"),     start: 12, end: 13, line: 1, column: 13 },
+          Token { kind: TokenKind::CurlyBracketOpening,  value: String::from("{"),     start: 13, end: 14, line: 1, column: 14 },
+          Token { kind: TokenKind::VerticalBar,          value: String::from("|"),     start: 14, end: 15, line: 1, column: 15 },
+          Token { kind: TokenKind::CurlyBracketClosing,  value: String::from("}"),     start: 15, end: 16, line: 1, column: 16 },
+          Token { kind: TokenKind::EOF,                  value: String::from("<EOF>"), start: 16, end: 16, line: 1, column: 17 },
       ]),
     );
   }
@@ -997,16 +1015,16 @@ mod lexer {
     assert_eq!(
       tokenize("HELLO hello _HELLO __hello hello123 hello_123 _123 __123"),
       Ok(vec![
-          Token { kind: TokenKind::SOF,                                       start:  0, end:  0, line: 0, column:  0 },
-          Token { kind: TokenKind::Name { value: String::from("HELLO") },     start:  0, end:  5, line: 1, column:  1 },
-          Token { kind: TokenKind::Name { value: String::from("hello") },     start:  6, end: 11, line: 1, column:  7 },
-          Token { kind: TokenKind::Name { value: String::from("_HELLO") },    start: 12, end: 18, line: 1, column: 13 },
-          Token { kind: TokenKind::Name { value: String::from("__hello") },   start: 19, end: 26, line: 1, column: 20 },
-          Token { kind: TokenKind::Name { value: String::from("hello123") },  start: 27, end: 35, line: 1, column: 28 },
-          Token { kind: TokenKind::Name { value: String::from("hello_123") }, start: 36, end: 45, line: 1, column: 37 },
-          Token { kind: TokenKind::Name { value: String::from("_123") },      start: 46, end: 50, line: 1, column: 47 },
-          Token { kind: TokenKind::Name { value: String::from("__123") },     start: 51, end: 56, line: 1, column: 52 },
-          Token { kind: TokenKind::EOF,                                       start: 56, end: 56, line: 1, column: 57 },
+          Token { kind: TokenKind::SOF,  value: String::from("<SOF>"),     start:  0, end:  0, line: 0, column:  0 },
+          Token { kind: TokenKind::Name, value: String::from("HELLO"),     start:  0, end:  5, line: 1, column:  1 },
+          Token { kind: TokenKind::Name, value: String::from("hello"),     start:  6, end: 11, line: 1, column:  7 },
+          Token { kind: TokenKind::Name, value: String::from("_HELLO"),    start: 12, end: 18, line: 1, column: 13 },
+          Token { kind: TokenKind::Name, value: String::from("__hello"),   start: 19, end: 26, line: 1, column: 20 },
+          Token { kind: TokenKind::Name, value: String::from("hello123"),  start: 27, end: 35, line: 1, column: 28 },
+          Token { kind: TokenKind::Name, value: String::from("hello_123"), start: 36, end: 45, line: 1, column: 37 },
+          Token { kind: TokenKind::Name, value: String::from("_123"),      start: 46, end: 50, line: 1, column: 47 },
+          Token { kind: TokenKind::Name, value: String::from("__123"),     start: 51, end: 56, line: 1, column: 52 },
+          Token { kind: TokenKind::EOF,  value: String::from("<EOF>"),     start: 56, end: 56, line: 1, column: 57 },
       ]),
     );
   }
@@ -1028,12 +1046,12 @@ mod lexer {
     assert_eq!(
       tokenize("0 -0 42 -42"),
       Ok(vec![
-          Token { kind: TokenKind::SOF,                                start:  0, end:  0, line: 0, column:  0 },
-          Token { kind: TokenKind::Int { value: String::from("0") },   start:  0, end:  1, line: 1, column:  1 },
-          Token { kind: TokenKind::Int { value: String::from("-0") },  start:  2, end:  4, line: 1, column:  3 },
-          Token { kind: TokenKind::Int { value: String::from("42") },  start:  5, end:  7, line: 1, column:  6 },
-          Token { kind: TokenKind::Int { value: String::from("-42") }, start:  8, end: 11, line: 1, column:  9 },
-          Token { kind: TokenKind::EOF,                                start: 11, end: 11, line: 1, column: 12 },
+          Token { kind: TokenKind::SOF, value: String::from("<SOF>"), start:  0, end:  0, line: 0, column:  0 },
+          Token { kind: TokenKind::Int, value: String::from("0"),     start:  0, end:  1, line: 1, column:  1 },
+          Token { kind: TokenKind::Int, value: String::from("-0"),    start:  2, end:  4, line: 1, column:  3 },
+          Token { kind: TokenKind::Int, value: String::from("42"),    start:  5, end:  7, line: 1, column:  6 },
+          Token { kind: TokenKind::Int, value: String::from("-42"),   start:  8, end: 11, line: 1, column:  9 },
+          Token { kind: TokenKind::EOF, value: String::from("<EOF>"), start: 11, end: 11, line: 1, column: 12 },
       ]),
     );
   }
@@ -1080,12 +1098,12 @@ mod lexer {
     assert_eq!(
       tokenize("0.43 -0.43 42.43 -42.43"),
       Ok(vec![
-          Token { kind: TokenKind::SOF,                                     start:  0, end:  0, line: 0, column:  0 },
-          Token { kind: TokenKind::Float { value: String::from("0.43") },   start:  0, end:  4, line: 1, column:  1 },
-          Token { kind: TokenKind::Float { value: String::from("-0.43") },  start:  5, end: 10, line: 1, column:  6 },
-          Token { kind: TokenKind::Float { value: String::from("42.43") },  start: 11, end: 16, line: 1, column: 12 },
-          Token { kind: TokenKind::Float { value: String::from("-42.43") }, start: 17, end: 23, line: 1, column: 18 },
-          Token { kind: TokenKind::EOF,                                     start: 23, end: 23, line: 1, column: 24 },
+          Token { kind: TokenKind::SOF,   value: String::from("<SOF>"),  start:  0, end:  0, line: 0, column:  0 },
+          Token { kind: TokenKind::Float, value: String::from("0.43"),   start:  0, end:  4, line: 1, column:  1 },
+          Token { kind: TokenKind::Float, value: String::from("-0.43"),  start:  5, end: 10, line: 1, column:  6 },
+          Token { kind: TokenKind::Float, value: String::from("42.43"),  start: 11, end: 16, line: 1, column: 12 },
+          Token { kind: TokenKind::Float, value: String::from("-42.43"), start: 17, end: 23, line: 1, column: 18 },
+          Token { kind: TokenKind::EOF,   value: String::from("<EOF>"),  start: 23, end: 23, line: 1, column: 24 },
       ]),
     );
   }
@@ -1096,32 +1114,32 @@ mod lexer {
     assert_eq!(
       tokenize("0e44 0E44 0e+44 0E+44 0e-44 0E-44 -0e44 -0E44 -0e+44 -0E+44 -0e-44 -0E-44 42e44 42E44 42e+44 42E+44 42e-44 42E-44 -42e44 -42E44 -42e+44 -42E+44 -42e-44 -42E-44"),
       Ok(vec![
-          Token { kind: TokenKind::SOF,                                      start:   0, end:   0, line: 0, column:   0 },
-          Token { kind: TokenKind::Float { value: String::from("0e44") },    start:   0, end:   4, line: 1, column:   1 },
-          Token { kind: TokenKind::Float { value: String::from("0E44") },    start:   5, end:   9, line: 1, column:   6 },
-          Token { kind: TokenKind::Float { value: String::from("0e+44") },   start:  10, end:  15, line: 1, column:  11 },
-          Token { kind: TokenKind::Float { value: String::from("0E+44") },   start:  16, end:  21, line: 1, column:  17 },
-          Token { kind: TokenKind::Float { value: String::from("0e-44") },   start:  22, end:  27, line: 1, column:  23 },
-          Token { kind: TokenKind::Float { value: String::from("0E-44") },   start:  28, end:  33, line: 1, column:  29 },
-          Token { kind: TokenKind::Float { value: String::from("-0e44") },   start:  34, end:  39, line: 1, column:  35 },
-          Token { kind: TokenKind::Float { value: String::from("-0E44") },   start:  40, end:  45, line: 1, column:  41 },
-          Token { kind: TokenKind::Float { value: String::from("-0e+44") },  start:  46, end:  52, line: 1, column:  47 },
-          Token { kind: TokenKind::Float { value: String::from("-0E+44") },  start:  53, end:  59, line: 1, column:  54 },
-          Token { kind: TokenKind::Float { value: String::from("-0e-44") },  start:  60, end:  66, line: 1, column:  61 },
-          Token { kind: TokenKind::Float { value: String::from("-0E-44") },  start:  67, end:  73, line: 1, column:  68 },
-          Token { kind: TokenKind::Float { value: String::from("42e44") },   start:  74, end:  79, line: 1, column:  75 },
-          Token { kind: TokenKind::Float { value: String::from("42E44") },   start:  80, end:  85, line: 1, column:  81 },
-          Token { kind: TokenKind::Float { value: String::from("42e+44") },  start:  86, end:  92, line: 1, column:  87 },
-          Token { kind: TokenKind::Float { value: String::from("42E+44") },  start:  93, end:  99, line: 1, column:  94 },
-          Token { kind: TokenKind::Float { value: String::from("42e-44") },  start: 100, end: 106, line: 1, column: 101 },
-          Token { kind: TokenKind::Float { value: String::from("42E-44") },  start: 107, end: 113, line: 1, column: 108 },
-          Token { kind: TokenKind::Float { value: String::from("-42e44") },  start: 114, end: 120, line: 1, column: 115 },
-          Token { kind: TokenKind::Float { value: String::from("-42E44") },  start: 121, end: 127, line: 1, column: 122 },
-          Token { kind: TokenKind::Float { value: String::from("-42e+44") }, start: 128, end: 135, line: 1, column: 129 },
-          Token { kind: TokenKind::Float { value: String::from("-42E+44") }, start: 136, end: 143, line: 1, column: 137 },
-          Token { kind: TokenKind::Float { value: String::from("-42e-44") }, start: 144, end: 151, line: 1, column: 145 },
-          Token { kind: TokenKind::Float { value: String::from("-42E-44") }, start: 152, end: 159, line: 1, column: 153 },
-          Token { kind: TokenKind::EOF,                                      start: 159, end: 159, line: 1, column: 160 },
+          Token { kind: TokenKind::SOF,   value: String::from("<SOF>"),   start:   0, end:   0, line: 0, column:   0 },
+          Token { kind: TokenKind::Float, value: String::from("0e44"),    start:   0, end:   4, line: 1, column:   1 },
+          Token { kind: TokenKind::Float, value: String::from("0E44"),    start:   5, end:   9, line: 1, column:   6 },
+          Token { kind: TokenKind::Float, value: String::from("0e+44"),   start:  10, end:  15, line: 1, column:  11 },
+          Token { kind: TokenKind::Float, value: String::from("0E+44"),   start:  16, end:  21, line: 1, column:  17 },
+          Token { kind: TokenKind::Float, value: String::from("0e-44"),   start:  22, end:  27, line: 1, column:  23 },
+          Token { kind: TokenKind::Float, value: String::from("0E-44"),   start:  28, end:  33, line: 1, column:  29 },
+          Token { kind: TokenKind::Float, value: String::from("-0e44"),   start:  34, end:  39, line: 1, column:  35 },
+          Token { kind: TokenKind::Float, value: String::from("-0E44"),   start:  40, end:  45, line: 1, column:  41 },
+          Token { kind: TokenKind::Float, value: String::from("-0e+44"),  start:  46, end:  52, line: 1, column:  47 },
+          Token { kind: TokenKind::Float, value: String::from("-0E+44"),  start:  53, end:  59, line: 1, column:  54 },
+          Token { kind: TokenKind::Float, value: String::from("-0e-44"),  start:  60, end:  66, line: 1, column:  61 },
+          Token { kind: TokenKind::Float, value: String::from("-0E-44"),  start:  67, end:  73, line: 1, column:  68 },
+          Token { kind: TokenKind::Float, value: String::from("42e44"),   start:  74, end:  79, line: 1, column:  75 },
+          Token { kind: TokenKind::Float, value: String::from("42E44"),   start:  80, end:  85, line: 1, column:  81 },
+          Token { kind: TokenKind::Float, value: String::from("42e+44"),  start:  86, end:  92, line: 1, column:  87 },
+          Token { kind: TokenKind::Float, value: String::from("42E+44"),  start:  93, end:  99, line: 1, column:  94 },
+          Token { kind: TokenKind::Float, value: String::from("42e-44"),  start: 100, end: 106, line: 1, column: 101 },
+          Token { kind: TokenKind::Float, value: String::from("42E-44"),  start: 107, end: 113, line: 1, column: 108 },
+          Token { kind: TokenKind::Float, value: String::from("-42e44"),  start: 114, end: 120, line: 1, column: 115 },
+          Token { kind: TokenKind::Float, value: String::from("-42E44"),  start: 121, end: 127, line: 1, column: 122 },
+          Token { kind: TokenKind::Float, value: String::from("-42e+44"), start: 128, end: 135, line: 1, column: 129 },
+          Token { kind: TokenKind::Float, value: String::from("-42E+44"), start: 136, end: 143, line: 1, column: 137 },
+          Token { kind: TokenKind::Float, value: String::from("-42e-44"), start: 144, end: 151, line: 1, column: 145 },
+          Token { kind: TokenKind::Float, value: String::from("-42E-44"), start: 152, end: 159, line: 1, column: 153 },
+          Token { kind: TokenKind::EOF,   value: String::from("<EOF>"),   start: 159, end: 159, line: 1, column: 160 },
       ]),
     );
   }
@@ -1132,32 +1150,32 @@ mod lexer {
     assert_eq!(
       tokenize("0.43e44 0.43E44 0.43e+44 0.43E+44 0.43e-44 0.43E-44 -0.43e44 -0.43E44 -0.43e+44 -0.43E+44 -0.43e-44 -0.43E-44 42.43e44 42.43E44 42.43e+44 42.43E+44 42.43e-44 42.43E-44 -42.43e44 -42.43E44 -42.43e+44 -42.43E+44 -42.43e-44 -42.43E-44"),
       Ok(vec![
-          Token { kind: TokenKind::SOF,                                         start:   0, end:   0, line: 0, column:   0 },
-          Token { kind: TokenKind::Float { value: String::from("0.43e44") },    start:   0, end:   7, line: 1, column:   1 },
-          Token { kind: TokenKind::Float { value: String::from("0.43E44") },    start:   8, end:  15, line: 1, column:   9 },
-          Token { kind: TokenKind::Float { value: String::from("0.43e+44") },   start:  16, end:  24, line: 1, column:  17 },
-          Token { kind: TokenKind::Float { value: String::from("0.43E+44") },   start:  25, end:  33, line: 1, column:  26 },
-          Token { kind: TokenKind::Float { value: String::from("0.43e-44") },   start:  34, end:  42, line: 1, column:  35 },
-          Token { kind: TokenKind::Float { value: String::from("0.43E-44") },   start:  43, end:  51, line: 1, column:  44 },
-          Token { kind: TokenKind::Float { value: String::from("-0.43e44") },   start:  52, end:  60, line: 1, column:  53 },
-          Token { kind: TokenKind::Float { value: String::from("-0.43E44") },   start:  61, end:  69, line: 1, column:  62 },
-          Token { kind: TokenKind::Float { value: String::from("-0.43e+44") },  start:  70, end:  79, line: 1, column:  71 },
-          Token { kind: TokenKind::Float { value: String::from("-0.43E+44") },  start:  80, end:  89, line: 1, column:  81 },
-          Token { kind: TokenKind::Float { value: String::from("-0.43e-44") },  start:  90, end:  99, line: 1, column:  91 },
-          Token { kind: TokenKind::Float { value: String::from("-0.43E-44") },  start: 100, end: 109, line: 1, column: 101 },
-          Token { kind: TokenKind::Float { value: String::from("42.43e44") },   start: 110, end: 118, line: 1, column: 111 },
-          Token { kind: TokenKind::Float { value: String::from("42.43E44") },   start: 119, end: 127, line: 1, column: 120 },
-          Token { kind: TokenKind::Float { value: String::from("42.43e+44") },  start: 128, end: 137, line: 1, column: 129 },
-          Token { kind: TokenKind::Float { value: String::from("42.43E+44") },  start: 138, end: 147, line: 1, column: 139 },
-          Token { kind: TokenKind::Float { value: String::from("42.43e-44") },  start: 148, end: 157, line: 1, column: 149 },
-          Token { kind: TokenKind::Float { value: String::from("42.43E-44") },  start: 158, end: 167, line: 1, column: 159 },
-          Token { kind: TokenKind::Float { value: String::from("-42.43e44") },  start: 168, end: 177, line: 1, column: 169 },
-          Token { kind: TokenKind::Float { value: String::from("-42.43E44") },  start: 178, end: 187, line: 1, column: 179 },
-          Token { kind: TokenKind::Float { value: String::from("-42.43e+44") }, start: 188, end: 198, line: 1, column: 189 },
-          Token { kind: TokenKind::Float { value: String::from("-42.43E+44") }, start: 199, end: 209, line: 1, column: 200 },
-          Token { kind: TokenKind::Float { value: String::from("-42.43e-44") }, start: 210, end: 220, line: 1, column: 211 },
-          Token { kind: TokenKind::Float { value: String::from("-42.43E-44") }, start: 221, end: 231, line: 1, column: 222 },
-          Token { kind: TokenKind::EOF,                                         start: 231, end: 231, line: 1, column: 232 },
+          Token { kind: TokenKind::SOF,   value: String::from("<SOF>"),      start:   0, end:   0, line: 0, column:   0 },
+          Token { kind: TokenKind::Float, value: String::from("0.43e44"),    start:   0, end:   7, line: 1, column:   1 },
+          Token { kind: TokenKind::Float, value: String::from("0.43E44"),    start:   8, end:  15, line: 1, column:   9 },
+          Token { kind: TokenKind::Float, value: String::from("0.43e+44"),   start:  16, end:  24, line: 1, column:  17 },
+          Token { kind: TokenKind::Float, value: String::from("0.43E+44"),   start:  25, end:  33, line: 1, column:  26 },
+          Token { kind: TokenKind::Float, value: String::from("0.43e-44"),   start:  34, end:  42, line: 1, column:  35 },
+          Token { kind: TokenKind::Float, value: String::from("0.43E-44"),   start:  43, end:  51, line: 1, column:  44 },
+          Token { kind: TokenKind::Float, value: String::from("-0.43e44"),   start:  52, end:  60, line: 1, column:  53 },
+          Token { kind: TokenKind::Float, value: String::from("-0.43E44"),   start:  61, end:  69, line: 1, column:  62 },
+          Token { kind: TokenKind::Float, value: String::from("-0.43e+44"),  start:  70, end:  79, line: 1, column:  71 },
+          Token { kind: TokenKind::Float, value: String::from("-0.43E+44"),  start:  80, end:  89, line: 1, column:  81 },
+          Token { kind: TokenKind::Float, value: String::from("-0.43e-44"),  start:  90, end:  99, line: 1, column:  91 },
+          Token { kind: TokenKind::Float, value: String::from("-0.43E-44"),  start: 100, end: 109, line: 1, column: 101 },
+          Token { kind: TokenKind::Float, value: String::from("42.43e44"),   start: 110, end: 118, line: 1, column: 111 },
+          Token { kind: TokenKind::Float, value: String::from("42.43E44"),   start: 119, end: 127, line: 1, column: 120 },
+          Token { kind: TokenKind::Float, value: String::from("42.43e+44"),  start: 128, end: 137, line: 1, column: 129 },
+          Token { kind: TokenKind::Float, value: String::from("42.43E+44"),  start: 138, end: 147, line: 1, column: 139 },
+          Token { kind: TokenKind::Float, value: String::from("42.43e-44"),  start: 148, end: 157, line: 1, column: 149 },
+          Token { kind: TokenKind::Float, value: String::from("42.43E-44"),  start: 158, end: 167, line: 1, column: 159 },
+          Token { kind: TokenKind::Float, value: String::from("-42.43e44"),  start: 168, end: 177, line: 1, column: 169 },
+          Token { kind: TokenKind::Float, value: String::from("-42.43E44"),  start: 178, end: 187, line: 1, column: 179 },
+          Token { kind: TokenKind::Float, value: String::from("-42.43e+44"), start: 188, end: 198, line: 1, column: 189 },
+          Token { kind: TokenKind::Float, value: String::from("-42.43E+44"), start: 199, end: 209, line: 1, column: 200 },
+          Token { kind: TokenKind::Float, value: String::from("-42.43e-44"), start: 210, end: 220, line: 1, column: 211 },
+          Token { kind: TokenKind::Float, value: String::from("-42.43E-44"), start: 221, end: 231, line: 1, column: 222 },
+          Token { kind: TokenKind::EOF,   value: String::from("<EOF>"),      start: 231, end: 231, line: 1, column: 232 },
       ]),
     );
   }
@@ -1262,12 +1280,12 @@ mod lexer {
     assert_eq!(
       tokenize("\"Hello\" \"\" \"\"\"world\"\"\" \"\"\"\"\"\""),
       Ok(vec![
-          Token { kind: TokenKind::SOF,                                     start:  0, end:  0, line: 0, column:  0 },
-          Token { kind: TokenKind::String { value: String::from("Hello") }, start:  0, end:  7, line: 1, column:  1 },
-          Token { kind: TokenKind::String { value: String::from("") },      start:  8, end: 10, line: 1, column:  9 },
-          Token { kind: TokenKind::String { value: String::from("world") }, start: 11, end: 22, line: 1, column: 12 },
-          Token { kind: TokenKind::String { value: String::from("") },      start: 23, end: 29, line: 1, column: 24 },
-          Token { kind: TokenKind::EOF,                                     start: 29, end: 29, line: 1, column: 30 },
+          Token { kind: TokenKind::SOF,    value: String::from("<SOF>"), start:  0, end:  0, line: 0, column:  0 },
+          Token { kind: TokenKind::String, value: String::from("Hello"), start:  0, end:  7, line: 1, column:  1 },
+          Token { kind: TokenKind::String, value: String::from(""),      start:  8, end: 10, line: 1, column:  9 },
+          Token { kind: TokenKind::String, value: String::from("world"), start: 11, end: 22, line: 1, column: 12 },
+          Token { kind: TokenKind::String, value: String::from(""),      start: 23, end: 29, line: 1, column: 24 },
+          Token { kind: TokenKind::EOF,    value: String::from("<EOF>"), start: 29, end: 29, line: 1, column: 30 },
       ]),
     );
   }
@@ -1278,9 +1296,9 @@ mod lexer {
     assert_eq!(
       tokenize("\"Hello \\\" \\\\ \\/ \\b \\f \\n \\r \\t \\u1234\""),
       Ok(vec![
-          Token { kind: TokenKind::SOF,                                                                           start:  0, end:  0, line: 0, column:  0 },
-          Token { kind: TokenKind::String { value: String::from("Hello \" \\ / \u{8} \u{c} \n \r \t \u{1234}") }, start:  0, end: 38, line: 1, column:  1 },
-          Token { kind: TokenKind::EOF,                                                                           start: 38, end: 38, line: 1, column: 39 },
+          Token { kind: TokenKind::SOF,    value: String::from("<SOF>"),                                       start:  0, end:  0, line: 0, column:  0 },
+          Token { kind: TokenKind::String, value: String::from("Hello \" \\ / \u{8} \u{c} \n \r \t \u{1234}"), start:  0, end: 38, line: 1, column:  1 },
+          Token { kind: TokenKind::EOF,    value: String::from("<EOF>"),                                       start: 38, end: 38, line: 1, column: 39 },
       ]),
     );
   }
@@ -1291,12 +1309,12 @@ mod lexer {
     assert_eq!(
       tokenize("\"\"\"\\\"\"\"\"\"\" \"\"\"escaped \\\"\"\"\"\"\" \"\"\"\\\"\"\" escaped\"\"\" \"\"\"escaped \\\"\"\" escaped\"\"\""),
       Ok(vec![
-          Token { kind: TokenKind::SOF,                                                      start:  0, end:  0, line: 0, column:  0 },
-          Token { kind: TokenKind::String { value: String::from("\"\"\"") },                 start:  0, end: 10, line: 1, column:  1 },
-          Token { kind: TokenKind::String { value: String::from("escaped \"\"\"") },         start: 11, end: 29, line: 1, column: 12 },
-          Token { kind: TokenKind::String { value: String::from("\"\"\" escaped") },         start: 30, end: 48, line: 1, column: 31 },
-          Token { kind: TokenKind::String { value: String::from("escaped \"\"\" escaped") }, start: 49, end: 75, line: 1, column: 50 },
-          Token { kind: TokenKind::EOF,                                                      start: 75, end: 75, line: 1, column: 76 },
+          Token { kind: TokenKind::SOF,    value: String::from("<SOF>"),                  start:  0, end:  0, line: 0, column:  0 },
+          Token { kind: TokenKind::String, value: String::from("\"\"\""),                 start:  0, end: 10, line: 1, column:  1 },
+          Token { kind: TokenKind::String, value: String::from("escaped \"\"\""),         start: 11, end: 29, line: 1, column: 12 },
+          Token { kind: TokenKind::String, value: String::from("\"\"\" escaped"),         start: 30, end: 48, line: 1, column: 31 },
+          Token { kind: TokenKind::String, value: String::from("escaped \"\"\" escaped"), start: 49, end: 75, line: 1, column: 50 },
+          Token { kind: TokenKind::EOF,    value: String::from("<EOF>"),                  start: 75, end: 75, line: 1, column: 76 },
       ]),
     );
   }
@@ -1307,18 +1325,18 @@ mod lexer {
     assert_eq!(
       tokenize("\"\"\"\n \t Hello\r\n\r    \tworld\r  \n\t\"\"\""),
       Ok(vec![
-          Token { kind: TokenKind::SOF,                                                 start:  0, end:  0, line: 0, column: 0 },
-          Token { kind: TokenKind::String { value: String::from("Hello\n\n \tworld") }, start:  0, end: 33, line: 1, column: 1 },
-          Token { kind: TokenKind::EOF,                                                 start: 33, end: 33, line: 6, column: 5 },
+          Token { kind: TokenKind::SOF,    value: String::from("<SOF>"),             start:  0, end:  0, line: 0, column: 0 },
+          Token { kind: TokenKind::String, value: String::from("Hello\n\n \tworld"), start:  0, end: 33, line: 1, column: 1 },
+          Token { kind: TokenKind::EOF,    value: String::from("<EOF>"),             start: 33, end: 33, line: 6, column: 5 },
       ]),
     );
     #[cfg_attr(rustfmt, rustfmt_skip)]
     assert_eq!(
       tokenize("\"\"\"\n  Hello,\n    World!\n\n  Yours,\n    GraphQL.\n  \"\"\""),
       Ok(vec![
-          Token { kind: TokenKind::SOF,                                                                      start:  0, end:  0, line: 0, column: 0 },
-          Token { kind: TokenKind::String { value: String::from("Hello,\n  World!\n\nYours,\n  GraphQL.") }, start:  0, end: 52, line: 1, column: 1 },
-          Token { kind: TokenKind::EOF,                                                                      start: 52, end: 52, line: 7, column: 6 },
+          Token { kind: TokenKind::SOF,    value: String::from("<SOF>"),                                  start:  0, end:  0, line: 0, column: 0 },
+          Token { kind: TokenKind::String, value: String::from("Hello,\n  World!\n\nYours,\n  GraphQL."), start:  0, end: 52, line: 1, column: 1 },
+          Token { kind: TokenKind::EOF,    value: String::from("<EOF>"),                                  start: 52, end: 52, line: 7, column: 6 },
       ]),
     );
   }
