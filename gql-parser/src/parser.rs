@@ -1117,15 +1117,18 @@ impl Parser<'_> {
             vec![]
           };
 
+        let selection_set = self.parse_selection_set()?;
+        let end_token = selection_set.loc.end_token.clone();
+
         Ok(Definition::OperationDefinition {
           operation,
           name,
           variable_definitions,
           directives,
-          selection_set: self.parse_selection_set()?,
+          selection_set,
           loc: Loc {
             start_token,
-            end_token: self.parse_token(TokenKind::CurlyBracketClosing)?,
+            end_token,
           },
         })
       }
