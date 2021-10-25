@@ -236,17 +236,14 @@ impl<'a> Lexer<'a> {
     }
 
     match self.peek_char() {
-      None => {
-        self.is_done = true;
-        Ok(Some(Token {
-          kind: TokenKind::EOF,
-          value: String::from("<EOF>"),
-          start: self.position,
-          end: self.position,
-          line: self.line,
-          column: self.column,
-        }))
-      }
+      None => Ok(Some(Token {
+        kind: TokenKind::EOF,
+        value: String::from("<EOF>"),
+        start: self.position,
+        end: self.position,
+        line: self.line,
+        column: self.column,
+      })),
       // ASCII controll characters are not valid source characters
       // (except for CHARACTER TABULATION, LINE FEED, and CARRIAGE RETURN)
       character
@@ -813,9 +810,18 @@ impl<'a> Lexer<'a> {
 
     // If already peeked, then return the peeked token
     if self.peeked != None {
-      let peeked = std::mem::take(&mut self.peeked);
+      let peeked = self.peeked.clone();
       self.peeked = None;
-      return Ok(peeked);
+      return match peeked {
+        Some(token) => match token.kind {
+          TokenKind::EOF => {
+            self.is_done = true;
+            Ok(Some(token))
+          }
+          _ => Ok(Some(token)),
+        },
+        None => Ok(None),
+      };
     }
 
     match self.next_token() {
@@ -826,7 +832,16 @@ impl<'a> Lexer<'a> {
           position: self.position,
         })
       }
-      Ok(token) => Ok(token),
+      Ok(token) => match token {
+        Some(token) => match token.kind {
+          TokenKind::EOF => {
+            self.is_done = true;
+            Ok(Some(token))
+          }
+          _ => Ok(Some(token)),
+        },
+        None => Ok(None),
+      },
     }
   }
 
