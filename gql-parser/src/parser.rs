@@ -465,8 +465,10 @@ impl Parser<'_> {
     match self.lexer.next()? {
       None => Err(SyntaxError {
         message: match expected {
-          None => String::from("Unexpected <EOF>."),
-          Some(expected) => format!("Expected {}, found <EOF>.", expected),
+          None => format!("Unexpected {}.", TokenKind::EOF),
+          Some(expected) => {
+            format!("Expected {}, found {}.", expected, TokenKind::EOF)
+          }
         },
         position: self.lexer.get_position(),
       }),
@@ -478,8 +480,8 @@ impl Parser<'_> {
     match self.lexer.peek()? {
       None => Err(SyntaxError {
         message: match expected {
-          None => String::from("Unexpected <EOF>."),
-          Some(expected) => format!("Expected {}, found <EOF>.", expected),
+          None => format!("Unexpected {}.", TokenKind::EOF),
+          Some(expected) => format!("Expected {}, found {}.", expected, TokenKind::EOF),
         },
         position: self.lexer.get_position(),
       }),
