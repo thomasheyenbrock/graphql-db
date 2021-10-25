@@ -531,7 +531,7 @@ impl Parser<'_> {
         let peeked = self.lexer.peek()?;
         if peeked != None && peeked.unwrap().kind == TokenKind::ExclamationMark {
           let start_token = list_type.loc.start_token.clone();
-          let end_token = self.next_token(Some(TokenKind::ExclamationMark))?;
+          let end_token = self.parse_token(TokenKind::ExclamationMark)?;
           Ok(Type::NonNullType(NonNullType {
             gql_type: NullableType::ListType(list_type),
             loc: Loc {
@@ -549,7 +549,7 @@ impl Parser<'_> {
         let peeked = self.lexer.peek()?;
         if peeked != None && peeked.unwrap().kind == TokenKind::ExclamationMark {
           let start_token = named_type.loc.start_token.clone();
-          let end_token = self.next_token(Some(TokenKind::ExclamationMark))?;
+          let end_token = self.parse_token(TokenKind::ExclamationMark)?;
           Ok(Type::NonNullType(NonNullType {
             gql_type: NullableType::NamedType(named_type),
             loc: Loc {
