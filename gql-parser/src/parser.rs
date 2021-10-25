@@ -662,23 +662,31 @@ impl Parser<'_> {
           });
         };
 
-        let peeked = self.lexer.peek()?;
-        let name = if peeked != None && peeked.unwrap().kind == lexer::TokenKind::Name {
+        let name = if self
+          .peek_token(Some(lexer::TokenKind::CurlyBracketOpening))?
+          .kind
+          == lexer::TokenKind::Name
+        {
           Some(self.parse_name()?)
         } else {
           None
         };
 
-        let peeked = self.lexer.peek()?;
-        let variable_definitions =
-          if peeked != None && peeked.unwrap().kind == lexer::TokenKind::RoundBracketOpening {
-            self.parse_variable_definitions()?
-          } else {
-            vec![]
-          };
+        let variable_definitions = if self
+          .peek_token(Some(lexer::TokenKind::CurlyBracketOpening))?
+          .kind
+          == lexer::TokenKind::RoundBracketOpening
+        {
+          self.parse_variable_definitions()?
+        } else {
+          vec![]
+        };
 
-        let peeked = self.lexer.peek()?;
-        let directives = if peeked != None && peeked.unwrap().kind == lexer::TokenKind::Name {
+        let directives = if self
+          .peek_token(Some(lexer::TokenKind::CurlyBracketOpening))?
+          .kind
+          == lexer::TokenKind::Name
+        {
           self.parse_directives()?
         } else {
           vec![]
