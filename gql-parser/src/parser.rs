@@ -804,44 +804,6 @@ impl Parser<'_> {
     })
   }
 
-  fn parse_variable_definition(&mut self) -> Result<VariableDefinition, SyntaxError> {
-    let variable = self.parse_variable()?;
-    self.parse_token(TokenKind::Colon)?;
-    let gql_type = self.parse_type()?;
-
-    let default_value =
-      if self.peek_token(Some(TokenKind::DollarSign))?.kind == TokenKind::EqualsSign {
-        Some(self.parse_const_value()?)
-      } else {
-        None
-      };
-
-    let directives = if self.peek_token(Some(TokenKind::AtSign))?.kind == TokenKind::AtSign {
-      self.parse_directives()?
-    } else {
-      vec![]
-    };
-    let start_token = variable.loc.start_token.clone();
-    let end_token = if directives.len() > 0 {
-      directives.last().unwrap().loc.end_token.clone()
-    } else if default_value != None {
-      default_value.as_ref().unwrap().get_end_token()
-    } else {
-      gql_type.get_end_token()
-    };
-
-    Ok(VariableDefinition {
-      variable,
-      gql_type,
-      default_value,
-      directives,
-      loc: Loc {
-        start_token,
-        end_token,
-      },
-    })
-  }
-
   fn parse_variable_definitions(&mut self) -> Result<Vec<VariableDefinition>, SyntaxError> {
     self.parse_token(TokenKind::RoundBracketOpening)?;
     let mut variable_definitions = vec![];
@@ -856,7 +818,42 @@ impl Parser<'_> {
     }
 
     while next.kind == TokenKind::DollarSign {
-      variable_definitions.push(self.parse_variable_definition()?);
+      let variable = self.parse_variable()?;
+      self.parse_token(TokenKind::Colon)?;
+      let gql_type = self.parse_type()?;
+
+      let default_value =
+        if self.peek_token(Some(TokenKind::DollarSign))?.kind == TokenKind::EqualsSign {
+          Some(self.parse_const_value()?)
+        } else {
+          None
+        };
+
+      let directives = if self.peek_token(Some(TokenKind::AtSign))?.kind == TokenKind::AtSign {
+        self.parse_directives()?
+      } else {
+        vec![]
+      };
+
+      let start_token = variable.loc.start_token.clone();
+      let end_token = if directives.len() > 0 {
+        directives.last().unwrap().loc.end_token.clone()
+      } else if default_value != None {
+        default_value.as_ref().unwrap().get_end_token()
+      } else {
+        gql_type.get_end_token()
+      };
+
+      variable_definitions.push(VariableDefinition {
+        variable,
+        gql_type,
+        default_value,
+        directives,
+        loc: Loc {
+          start_token,
+          end_token,
+        },
+      });
       next = self.peek_token(Some(TokenKind::DollarSign))?;
     }
 
