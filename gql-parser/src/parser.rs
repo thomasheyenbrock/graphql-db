@@ -473,11 +473,12 @@ impl Parser<'_> {
 
   fn parse_token(&mut self, token_kind: TokenKind) -> Result<Token, SyntaxError> {
     let token = self.next_token(Some(token_kind.clone()))?;
-    if token.kind == token_kind {
-      Ok(token)
+    let cloned_token = token.clone();
+    if matches!(token.kind, token_kind) {
+      Ok(cloned_token)
     } else {
       Err(SyntaxError {
-        message: format!("Expected {}, found {}.", token_kind, token.kind),
+        message: format!("Expected {}, found {}.", token_kind, cloned_token.kind),
         position: token.start,
       })
     }
