@@ -581,11 +581,197 @@ impl Parser<'_> {
     })
   }
 
-  fn parse_const_value(&mut self) -> Result<ConstValue, SyntaxError> {
-    Err(SyntaxError {
-      message: String::from("TODO:"),
-      position: 999,
+  fn parse_int_value(&mut self) -> Result<IntValue, SyntaxError> {
+    let int_token = self.parse_token(TokenKind::Int)?;
+    let start_token = int_token.clone();
+    let end_token = int_token.clone();
+    Ok(IntValue {
+      value: int_token.value,
+      loc: Loc {
+        start_token,
+        end_token,
+      },
     })
+  }
+  fn parse_float_value(&mut self) -> Result<FloatValue, SyntaxError> {
+    let float_token = self.parse_token(TokenKind::Float)?;
+    let start_token = float_token.clone();
+    let end_token = float_token.clone();
+    Ok(FloatValue {
+      value: float_token.value,
+      loc: Loc {
+        start_token,
+        end_token,
+      },
+    })
+  }
+
+  fn parse_string_value(&mut self) -> Result<StringValue, SyntaxError> {
+    let string_token = self.parse_token(TokenKind::String { block: false })?;
+    let start_token = string_token.clone();
+    let end_token = string_token.clone();
+    Ok(StringValue {
+      value: string_token.value,
+      // We know that the token kind is actually a stirng, but Rust can't infer this
+      block: match string_token.kind {
+        TokenKind::String { block } => block,
+        // This can never happen
+        kind => panic!("Expected \"String\", found {}.", kind),
+      },
+      loc: Loc {
+        start_token,
+        end_token,
+      },
+    })
+  }
+
+  fn parse_boolean_value(&mut self) -> Result<BooleanValue, SyntaxError> {
+    let token = self.parse_token(TokenKind::Name)?;
+    if token.value != "true" && token.value != "false" {
+      Err(SyntaxError {
+        message: format!("Expected {}, found {}.", TokenKind::Name, token),
+        position: self.lexer.get_position(),
+      })
+    } else {
+      let start_token = token.clone();
+      let end_token = token.clone();
+      Ok(BooleanValue {
+        value: token.value == "true",
+        loc: Loc {
+          start_token,
+          end_token,
+        },
+      })
+    }
+  }
+
+  fn parse_null_value(&mut self) -> Result<NullValue, SyntaxError> {
+    let token = self.parse_token(TokenKind::Name)?;
+    if token.value != "null" {
+      Err(SyntaxError {
+        message: format!("Expected {}, found {}.", TokenKind::Name, token),
+        position: self.lexer.get_position(),
+      })
+    } else {
+      Ok(NullValue {
+        loc: Loc {
+          start_token: token.clone(),
+          end_token: token,
+        },
+      })
+    }
+  }
+
+  fn parse_enum_value(&mut self) -> Result<EnumValue, SyntaxError> {
+    let token = self.parse_token(TokenKind::Name)?;
+    if token.value == "true" || token.value == "false" || token.value == "null" {
+      Err(SyntaxError {
+        message: format!("Expected {}, found {}.", TokenKind::Name, token),
+        position: self.lexer.get_position(),
+      })
+    } else {
+      let start_token = token.clone();
+      let end_token = token.clone();
+      Ok(EnumValue {
+        value: token.value,
+        loc: Loc {
+          start_token,
+          end_token,
+        },
+      })
+    }
+  }
+
+  fn parse_const_list_value(&mut self) -> Result<ConstListValue, SyntaxError> {
+    let start_token = self.parse_token(TokenKind::SquareBracketOpening)?;
+    let mut values = vec![];
+    let mut next = self.peek_token(None)?;
+    while next.kind != TokenKind::SquareBracketClosing {
+      values.push(self.parse_const_value()?);
+      next = self.peek_token(None)?
+    }
+
+    let end_token = self.parse_token(TokenKind::SquareBracketClosing)?;
+    Ok(ConstListValue {
+      values,
+      loc: Loc {
+        start_token,
+        end_token,
+      },
+    })
+  }
+
+  fn parse_const_object_field(&mut self) -> Result<ConstObjectField, SyntaxError> {
+    let name = self.parse_name()?;
+    self.parse_token(TokenKind::Colon)?;
+    let value = self.parse_const_value()?;
+
+    let start_token = name.loc.start_token.clone();
+    let end_token = value.get_end_token();
+
+    Ok(ConstObjectField {
+      name,
+      value,
+      loc: Loc {
+        start_token,
+        end_token,
+      },
+    })
+  }
+
+  fn parse_const_object_value(&mut self) -> Result<ConstObjectValue, SyntaxError> {
+    let start_token = self.parse_token(TokenKind::CurlyBracketOpening)?;
+    let mut fields = vec![];
+
+    let mut next = self.peek_token(Some(TokenKind::Name))?;
+    while next.kind != TokenKind::CurlyBracketClosing {
+      fields.push(self.parse_const_object_field()?);
+      next = self.peek_token(Some(TokenKind::Name))?;
+    }
+
+    if next.kind != TokenKind::CurlyBracketClosing {
+      return Err(SyntaxError {
+        // Align with graphql-js: The error message always expects another
+        // field instead of a closing bracket.
+        message: format!("Expected {}, found {}.", TokenKind::Name, next),
+        position: self.lexer.get_position(),
+      });
+    }
+    let end_token = self.next_token(Some(TokenKind::Name))?;
+
+    Ok(ConstObjectValue {
+      fields,
+      loc: Loc {
+        start_token,
+        end_token,
+      },
+    })
+  }
+
+  fn parse_const_value(&mut self) -> Result<ConstValue, SyntaxError> {
+    let peeked = self.peek_token(None)?;
+    match peeked.kind {
+      TokenKind::Int => Ok(ConstValue::IntValue(self.parse_int_value()?)),
+      TokenKind::Float => Ok(ConstValue::FloatValue(self.parse_float_value()?)),
+      TokenKind::String { .. } => Ok(ConstValue::StringValue(self.parse_string_value()?)),
+      TokenKind::Name => {
+        if peeked.value == "true" || peeked.value == "false" {
+          Ok(ConstValue::BooleanValue(self.parse_boolean_value()?))
+        } else if peeked.value == "null" {
+          Ok(ConstValue::NullValue(self.parse_null_value()?))
+        } else {
+          Ok(ConstValue::EnumValue(self.parse_enum_value()?))
+        }
+      }
+      TokenKind::SquareBracketOpening => Ok(ConstValue::ListValue(self.parse_const_list_value()?)),
+      TokenKind::CurlyBracketOpening => {
+        Ok(ConstValue::ObjectValue(self.parse_const_object_value()?))
+      }
+      _ => Err(SyntaxError {
+        message: format!("Unexpected {}.", peeked),
+        position: self.lexer.get_position(),
+      }),
+    }
   }
 
   fn parse_description(&mut self) -> Result<StringValue, SyntaxError> {
