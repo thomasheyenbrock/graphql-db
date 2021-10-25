@@ -1,11 +1,11 @@
 use crate::error::SyntaxError;
-use crate::lexer;
+use crate::lexer::{Lexer, Token, TokenKind};
 use vec1::Vec1;
 
 #[derive(Debug, PartialEq)]
 pub struct Loc {
-  pub start_token: lexer::Token,
-  pub end_token: lexer::Token,
+  pub start_token: Token,
+  pub end_token: Token,
 }
 
 #[allow(non_camel_case_types)]
@@ -54,7 +54,7 @@ pub enum Type {
 }
 
 impl Type {
-  fn get_end_token(&self) -> lexer::Token {
+  fn get_end_token(&self) -> Token {
     match self {
       Type::NamedType(named_type) => named_type.loc.end_token.clone(),
       Type::ListType(list_type) => list_type.loc.end_token.clone(),
@@ -169,7 +169,7 @@ pub enum ConstValue {
 }
 
 impl ConstValue {
-  fn get_end_token(&self) -> lexer::Token {
+  fn get_end_token(&self) -> Token {
     match self {
       ConstValue::IntValue(int_value) => int_value.loc.end_token.clone(),
       ConstValue::FloatValue(float_value) => float_value.loc.end_token.clone(),
@@ -435,20 +435,17 @@ pub struct Document {
 }
 
 pub struct Parser<'a> {
-  lexer: lexer::Lexer<'a>,
+  lexer: Lexer<'a>,
 }
 
 impl Parser<'_> {
   pub fn new(query: &str) -> Parser {
     Parser {
-      lexer: lexer::Lexer::new(query),
+      lexer: Lexer::new(query),
     }
   }
 
-  fn next_token(
-    &mut self,
-    expected: Option<lexer::TokenKind>,
-  ) -> Result<lexer::Token, SyntaxError> {
+  fn next_token(&mut self, expected: Option<TokenKind>) -> Result<Token, SyntaxError> {
     match self.lexer.next()? {
       None => Err(SyntaxError {
         message: match expected {
@@ -461,10 +458,7 @@ impl Parser<'_> {
     }
   }
 
-  fn peek_token(
-    &mut self,
-    expected: Option<lexer::TokenKind>,
-  ) -> Result<lexer::Token, SyntaxError> {
+  fn peek_token(&mut self, expected: Option<TokenKind>) -> Result<Token, SyntaxError> {
     match self.lexer.peek()? {
       None => Err(SyntaxError {
         message: match expected {
@@ -477,7 +471,7 @@ impl Parser<'_> {
     }
   }
 
-  fn parse_token(&mut self, token_kind: lexer::TokenKind) -> Result<lexer::Token, SyntaxError> {
+  fn parse_token(&mut self, token_kind: TokenKind) -> Result<Token, SyntaxError> {
     let token = self.next_token(Some(token_kind.clone()))?;
     if token.kind == token_kind {
       Ok(token)
@@ -490,7 +484,7 @@ impl Parser<'_> {
   }
 
   fn parse_name(&mut self) -> Result<Name, SyntaxError> {
-    let token = self.parse_token(lexer::TokenKind::Name)?;
+    let token = self.parse_token(TokenKind::Name)?;
     let loc = Loc {
       start_token: token.clone(),
       end_token: token.clone(),
@@ -515,9 +509,9 @@ impl Parser<'_> {
   }
 
   fn parse_list_type(&mut self) -> Result<ListType, SyntaxError> {
-    let start_token = self.parse_token(lexer::TokenKind::SquareBracketOpening)?;
+    let start_token = self.parse_token(TokenKind::SquareBracketOpening)?;
     let gql_type = self.parse_type()?;
-    let end_token = self.parse_token(lexer::TokenKind::SquareBracketClosing)?;
+    let end_token = self.parse_token(TokenKind::SquareBracketClosing)?;
     Ok(ListType {
       gql_type: Box::new(gql_type),
       loc: Loc {
@@ -528,15 +522,15 @@ impl Parser<'_> {
   }
 
   fn parse_type(&mut self) -> Result<Type, SyntaxError> {
-    let peeked = self.peek_token(Some(lexer::TokenKind::Name))?;
+    let peeked = self.peek_token(Some(TokenKind::Name))?;
     match peeked.kind {
-      lexer::TokenKind::SquareBracketOpening => {
+      TokenKind::SquareBracketOpening => {
         let list_type = self.parse_list_type()?;
         // We don't use self.peek_token because we don't know what token to expect
         let peeked = self.lexer.peek()?;
-        if peeked != None && peeked.unwrap().kind == lexer::TokenKind::ExclamationMark {
+        if peeked != None && peeked.unwrap().kind == TokenKind::ExclamationMark {
           let start_token = list_type.loc.start_token.clone();
-          let end_token = self.next_token(Some(lexer::TokenKind::ExclamationMark))?;
+          let end_token = self.next_token(Some(TokenKind::ExclamationMark))?;
           Ok(Type::NonNullType(NonNullType {
             gql_type: NullableType::ListType(list_type),
             loc: Loc {
@@ -548,13 +542,13 @@ impl Parser<'_> {
           Ok(Type::ListType(list_type))
         }
       }
-      lexer::TokenKind::Name => {
+      TokenKind::Name => {
         let named_type = self.parse_named_type()?;
         // We don't use self.peek_token because we don't know what token to expect
         let peeked = self.lexer.peek()?;
-        if peeked != None && peeked.unwrap().kind == lexer::TokenKind::ExclamationMark {
+        if peeked != None && peeked.unwrap().kind == TokenKind::ExclamationMark {
           let start_token = named_type.loc.start_token.clone();
-          let end_token = self.next_token(Some(lexer::TokenKind::ExclamationMark))?;
+          let end_token = self.next_token(Some(TokenKind::ExclamationMark))?;
           Ok(Type::NonNullType(NonNullType {
             gql_type: NullableType::NamedType(named_type),
             loc: Loc {
@@ -567,14 +561,14 @@ impl Parser<'_> {
         }
       }
       _ => Err(SyntaxError {
-        message: format!("Expected {}, found {}.", lexer::TokenKind::Name, peeked),
+        message: format!("Expected {}, found {}.", TokenKind::Name, peeked),
         position: self.lexer.get_position(),
       }),
     }
   }
 
   fn parse_variable(&mut self) -> Result<Variable, SyntaxError> {
-    let start_token = self.parse_token(lexer::TokenKind::DollarSign)?;
+    let start_token = self.parse_token(TokenKind::DollarSign)?;
     let name = self.parse_name()?;
     let end_token = name.loc.end_token.clone();
     Ok(Variable {
@@ -600,7 +594,7 @@ impl Parser<'_> {
       end_token: token.clone(),
     };
     match token.kind {
-      lexer::TokenKind::String { block } => Ok(StringValue {
+      TokenKind::String { block } => Ok(StringValue {
         value: token.value,
         block,
         loc,
@@ -608,7 +602,7 @@ impl Parser<'_> {
       _ => Err(SyntaxError {
         message: format!(
           "Expected {}, found {}",
-          lexer::TokenKind::String { block: false },
+          TokenKind::String { block: false },
           token
         ),
         position: self.lexer.get_position(),
@@ -625,24 +619,21 @@ impl Parser<'_> {
 
   fn parse_variable_definition(&mut self) -> Result<VariableDefinition, SyntaxError> {
     let variable = self.parse_variable()?;
-    self.parse_token(lexer::TokenKind::Colon)?;
+    self.parse_token(TokenKind::Colon)?;
     let gql_type = self.parse_type()?;
 
-    let default_value = if self.peek_token(Some(lexer::TokenKind::DollarSign))?.kind
-      == lexer::TokenKind::EqualsSign
-    {
-      Some(self.parse_const_value()?)
-    } else {
-      None
-    };
-
-    let directives =
-      if self.peek_token(Some(lexer::TokenKind::AtSign))?.kind == lexer::TokenKind::AtSign {
-        self.parse_directives()?
+    let default_value =
+      if self.peek_token(Some(TokenKind::DollarSign))?.kind == TokenKind::EqualsSign {
+        Some(self.parse_const_value()?)
       } else {
-        vec![]
+        None
       };
 
+    let directives = if self.peek_token(Some(TokenKind::AtSign))?.kind == TokenKind::AtSign {
+      self.parse_directives()?
+    } else {
+      vec![]
+    };
     let start_token = variable.loc.start_token.clone();
     let end_token = if directives.len() > 0 {
       directives.last().unwrap().loc.end_token.clone()
@@ -665,32 +656,32 @@ impl Parser<'_> {
   }
 
   fn parse_variable_definitions(&mut self) -> Result<Vec<VariableDefinition>, SyntaxError> {
-    self.parse_token(lexer::TokenKind::RoundBracketOpening)?;
+    self.parse_token(TokenKind::RoundBracketOpening)?;
     let mut variable_definitions = vec![];
-    let mut next = self.peek_token(Some(lexer::TokenKind::DollarSign))?;
+    let mut next = self.peek_token(Some(TokenKind::DollarSign))?;
 
     // There must be at least one variable
-    if next.kind != lexer::TokenKind::DollarSign {
+    if next.kind != TokenKind::DollarSign {
       return Err(SyntaxError {
-        message: format!("Expected {}, found {}.", lexer::TokenKind::DollarSign, next),
+        message: format!("Expected {}, found {}.", TokenKind::DollarSign, next),
         position: self.lexer.get_position(),
       });
     }
 
-    while next.kind == lexer::TokenKind::DollarSign {
+    while next.kind == TokenKind::DollarSign {
       variable_definitions.push(self.parse_variable_definition()?);
-      next = self.peek_token(Some(lexer::TokenKind::DollarSign))?;
+      next = self.peek_token(Some(TokenKind::DollarSign))?;
     }
 
-    if next.kind != lexer::TokenKind::RoundBracketClosing {
+    if next.kind != TokenKind::RoundBracketClosing {
       return Err(SyntaxError {
         // Align with graphql-js: The error message always expects another
         // variable instead of a closing bracket.
-        message: format!("Expected {}, found {}.", lexer::TokenKind::DollarSign, next),
+        message: format!("Expected {}, found {}.", TokenKind::DollarSign, next),
         position: self.lexer.get_position(),
       });
     }
-    self.next_token(Some(lexer::TokenKind::DollarSign))?;
+    self.next_token(Some(TokenKind::DollarSign))?;
 
     Ok(variable_definitions)
   }
@@ -705,7 +696,7 @@ impl Parser<'_> {
   fn parse_operation_definition(&mut self) -> Result<Definition, SyntaxError> {
     let start_token = self.next_token(None)?;
     match start_token.kind {
-      lexer::TokenKind::CurlyBracketOpening => Ok(Definition::OperationDefinition {
+      TokenKind::CurlyBracketOpening => Ok(Definition::OperationDefinition {
         operation: OperationType::query,
         name: None,
         variable_definitions: vec![],
@@ -713,10 +704,10 @@ impl Parser<'_> {
         selection_set: self.parse_selection_set()?,
         loc: Loc {
           start_token,
-          end_token: self.parse_token(lexer::TokenKind::CurlyBracketClosing)?,
+          end_token: self.parse_token(TokenKind::CurlyBracketClosing)?,
         },
       }),
-      lexer::TokenKind::Name => {
+      TokenKind::Name => {
         let operation = if start_token.value == "query" {
           OperationType::query
         } else if start_token.value == "mutation" {
@@ -730,35 +721,27 @@ impl Parser<'_> {
           });
         };
 
-        let name = if self
-          .peek_token(Some(lexer::TokenKind::CurlyBracketOpening))?
-          .kind
-          == lexer::TokenKind::Name
+        let name = if self.peek_token(Some(TokenKind::CurlyBracketOpening))?.kind == TokenKind::Name
         {
           Some(self.parse_name()?)
         } else {
           None
         };
 
-        let variable_definitions = if self
-          .peek_token(Some(lexer::TokenKind::CurlyBracketOpening))?
-          .kind
-          == lexer::TokenKind::RoundBracketOpening
+        let variable_definitions = if self.peek_token(Some(TokenKind::CurlyBracketOpening))?.kind
+          == TokenKind::RoundBracketOpening
         {
           self.parse_variable_definitions()?
         } else {
           vec![]
         };
 
-        let directives = if self
-          .peek_token(Some(lexer::TokenKind::CurlyBracketOpening))?
-          .kind
-          == lexer::TokenKind::Name
-        {
-          self.parse_directives()?
-        } else {
-          vec![]
-        };
+        let directives =
+          if self.peek_token(Some(TokenKind::CurlyBracketOpening))?.kind == TokenKind::Name {
+            self.parse_directives()?
+          } else {
+            vec![]
+          };
 
         Ok(Definition::OperationDefinition {
           operation,
@@ -768,7 +751,7 @@ impl Parser<'_> {
           selection_set: self.parse_selection_set()?,
           loc: Loc {
             start_token,
-            end_token: self.parse_token(lexer::TokenKind::CurlyBracketClosing)?,
+            end_token: self.parse_token(TokenKind::CurlyBracketClosing)?,
           },
         })
       }
@@ -917,7 +900,7 @@ impl Parser<'_> {
 
   fn parse_definition(&mut self) -> Result<Definition, SyntaxError> {
     let peeked = self.peek_token(None)?;
-    let is_extension = peeked.kind == lexer::TokenKind::Name && peeked.value == "extend";
+    let is_extension = peeked.kind == TokenKind::Name && peeked.value == "extend";
     if is_extension {
       // Skip the "extend" keyword
       self.next_token(None)?;
@@ -925,7 +908,7 @@ impl Parser<'_> {
       // An extension must be followed by a type keyworkd
       let peeked = self.peek_token(None)?;
       return match peeked.kind {
-        lexer::TokenKind::Name => {
+        TokenKind::Name => {
           if peeked.value == "schema" {
             self.parse_schema_extension()
           } else if peeked.value == "scalar" {
@@ -954,8 +937,8 @@ impl Parser<'_> {
       };
     }
 
-    let description = if (self.peek_token(None)?.kind == (lexer::TokenKind::String { block: true }))
-      || (self.peek_token(None)?.kind == (lexer::TokenKind::String { block: false }))
+    let description = if (self.peek_token(None)?.kind == (TokenKind::String { block: true }))
+      || (self.peek_token(None)?.kind == (TokenKind::String { block: false }))
     {
       // Parse the description
       let string_value = self.parse_description()?;
@@ -963,7 +946,7 @@ impl Parser<'_> {
       // A description must be followed by a type system definition
       let peeked = self.peek_token(None)?;
       match peeked.kind {
-        lexer::TokenKind::Name => {
+        TokenKind::Name => {
           if peeked.value == "schema"
             || peeked.value == "scalar"
             || peeked.value == "type"
@@ -994,8 +977,8 @@ impl Parser<'_> {
 
     let token = self.peek_token(None)?;
     match token.kind {
-      lexer::TokenKind::CurlyBracketOpening => self.parse_operation_definition(),
-      lexer::TokenKind::Name => {
+      TokenKind::CurlyBracketOpening => self.parse_operation_definition(),
+      TokenKind::Name => {
         if token.value == "query" || token.value == "mutation" || token.value == "subscription" {
           self.parse_operation_definition()
         } else if token.value == "fragment" {
@@ -1031,13 +1014,13 @@ impl Parser<'_> {
   }
 
   pub fn parse_document(&mut self) -> Result<Document, SyntaxError> {
-    let start_token = self.parse_token(lexer::TokenKind::SOF)?;
+    let start_token = self.parse_token(TokenKind::SOF)?;
     let mut definitions = vec1![self.parse_definition()?];
     while self.lexer.has_more() {
       definitions.push(self.parse_definition()?);
     }
 
-    let end_token = self.parse_token(lexer::TokenKind::EOF)?;
+    let end_token = self.parse_token(TokenKind::EOF)?;
     Ok(Document {
       definitions,
       loc: Loc {
@@ -1071,16 +1054,16 @@ mod parser {
               name: Name {
                 value: String::from("hello"),
                 loc: Loc {
-                  start_token: lexer::Token {
-                    kind: lexer::TokenKind::Name,
+                  start_token: Token {
+                    kind: TokenKind::Name,
                     value: String::from("hello"),
                     start: 2,
                     end: 7,
                     line: 1,
                     column: 3
                   },
-                  end_token: lexer::Token {
-                    kind: lexer::TokenKind::Name,
+                  end_token: Token {
+                    kind: TokenKind::Name,
                     value: String::from("hello"),
                     start: 2,
                     end: 7,
@@ -1094,16 +1077,16 @@ mod parser {
               directives: vec![],
               selection_set: None,
               loc: Loc {
-                start_token: lexer::Token {
-                  kind: lexer::TokenKind::Name,
+                start_token: Token {
+                  kind: TokenKind::Name,
                   value: String::from("hello"),
                   start: 2,
                   end: 7,
                   line: 1,
                   column: 3
                 },
-                end_token: lexer::Token {
-                  kind: lexer::TokenKind::Name,
+                end_token: Token {
+                  kind: TokenKind::Name,
                   value: String::from("hello"),
                   start: 2,
                   end: 7,
@@ -1113,16 +1096,16 @@ mod parser {
               },
             }],
             loc: Loc {
-              start_token: lexer::Token {
-                kind: lexer::TokenKind::CurlyBracketOpening,
+              start_token: Token {
+                kind: TokenKind::CurlyBracketOpening,
                 value: String::from("{"),
                 start: 0,
                 end: 1,
                 line: 1,
                 column: 1
               },
-              end_token: lexer::Token {
-                kind: lexer::TokenKind::CurlyBracketClosing,
+              end_token: Token {
+                kind: TokenKind::CurlyBracketClosing,
                 value: String::from("}"),
                 start: 8,
                 end: 9,
@@ -1132,16 +1115,16 @@ mod parser {
             },
           },
           loc: Loc {
-            start_token: lexer::Token {
-              kind: lexer::TokenKind::CurlyBracketOpening,
+            start_token: Token {
+              kind: TokenKind::CurlyBracketOpening,
               value: String::from("{"),
               start: 0,
               end: 1,
               line: 1,
               column: 1
             },
-            end_token: lexer::Token {
-              kind: lexer::TokenKind::CurlyBracketClosing,
+            end_token: Token {
+              kind: TokenKind::CurlyBracketClosing,
               value: String::from("}"),
               start: 8,
               end: 9,
@@ -1151,16 +1134,16 @@ mod parser {
           },
         }],
         loc: Loc {
-          start_token: lexer::Token {
-            kind: lexer::TokenKind::SOF,
+          start_token: Token {
+            kind: TokenKind::SOF,
             value: String::from("<SOF>"),
             line: 0,
             column: 0,
             start: 0,
             end: 0,
           },
-          end_token: lexer::Token {
-            kind: lexer::TokenKind::EOF,
+          end_token: Token {
+            kind: TokenKind::EOF,
             value: String::from("<EOF>"),
             start: 9,
             end: 9,
