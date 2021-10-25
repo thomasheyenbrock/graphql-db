@@ -472,7 +472,10 @@ impl Parser<'_> {
         },
         position: self.lexer.get_position(),
       }),
-      Some(token) => Ok(token),
+      Some(token) => match token.kind {
+        TokenKind::Comment => self.next_token(expected),
+        _ => Ok(token),
+      },
     }
   }
 
@@ -485,7 +488,13 @@ impl Parser<'_> {
         },
         position: self.lexer.get_position(),
       }),
-      Some(token) => Ok(token),
+      Some(token) => match token.kind {
+        TokenKind::Comment => {
+          self.lexer.next()?;
+          self.peek_token(expected)
+        }
+        _ => Ok(token),
+      },
     }
   }
 
