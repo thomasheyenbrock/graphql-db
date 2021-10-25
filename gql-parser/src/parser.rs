@@ -137,6 +137,22 @@ pub enum Value {
   ObjectValue(ObjectValue),
 }
 
+impl Value {
+  fn get_end_token(&self) -> Token {
+    match self {
+      Value::Variable(variable) => variable.loc.end_token.clone(),
+      Value::IntValue(int_value) => int_value.loc.end_token.clone(),
+      Value::FloatValue(float_value) => float_value.loc.end_token.clone(),
+      Value::StringValue(string_value) => string_value.loc.end_token.clone(),
+      Value::BooleanValue(boolean_value) => boolean_value.loc.end_token.clone(),
+      Value::NullValue(null_value) => null_value.loc.end_token.clone(),
+      Value::EnumValue(enum_value) => enum_value.loc.end_token.clone(),
+      Value::ListValue(list_value) => list_value.loc.end_token.clone(),
+      Value::ObjectValue(object_value) => object_value.loc.end_token.clone(),
+    }
+  }
+}
+
 #[derive(Debug, PartialEq)]
 pub struct ConstListValue {
   pub values: Vec<ConstValue>,
@@ -682,6 +698,13 @@ impl Parser<'_> {
     }
   }
 
+  fn parse_value(&mut self) -> Result<Value, SyntaxError> {
+    Err(SyntaxError {
+      message: String::from("TODO:"),
+      position: 999,
+    })
+  }
+
   fn parse_const_list_value(&mut self) -> Result<ConstListValue, SyntaxError> {
     let start_token = self.parse_token(TokenKind::SquareBracketOpening)?;
     let mut values = vec![];
@@ -798,10 +821,35 @@ impl Parser<'_> {
   }
 
   fn parse_arguments(&mut self) -> Result<Vec<Argument>, SyntaxError> {
-    Err(SyntaxError {
-      message: String::from("TODO:"),
-      position: 999,
-    })
+    self.parse_token(TokenKind::RoundBracketOpening)?;
+
+    let mut arguments = vec![];
+    let mut next = self.peek_token(Some(TokenKind::Name))?;
+    while next.kind != TokenKind::RoundBracketClosing {
+      let name = self.parse_name()?;
+      self.parse_token(TokenKind::Colon)?;
+      let value = self.parse_value()?;
+
+      let start_token = name.loc.start_token.clone();
+      let end_token = value.get_end_token();
+
+      arguments.push(Argument {
+        name,
+        value,
+        loc: Loc {
+          start_token,
+          end_token,
+        },
+      });
+
+      next = self.peek_token(Some(TokenKind::Name))?;
+    }
+
+    // Align with graphql-js: The error message always expects another
+    // argument instead of a closing bracket.
+    self.next_token(Some(TokenKind::Name))?;
+
+    Ok(arguments)
   }
 
   fn parse_directives(&mut self, expected: TokenKind) -> Result<Vec<Directive>, SyntaxError> {
