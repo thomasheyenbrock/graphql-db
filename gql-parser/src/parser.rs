@@ -501,11 +501,76 @@ impl Parser<'_> {
     })
   }
 
-  fn parse_type(&mut self) -> Result<Type, SyntaxError> {
-    Err(SyntaxError {
-      message: String::from("TODO:"),
-      position: 999,
+  fn parse_named_type(&mut self) -> Result<NamedType, SyntaxError> {
+    let name = self.parse_name()?;
+    let start_token = name.loc.start_token.clone();
+    let end_token = name.loc.end_token.clone();
+    Ok(NamedType {
+      name,
+      loc: Loc {
+        start_token,
+        end_token,
+      },
     })
+  }
+
+  fn parse_list_type(&mut self) -> Result<ListType, SyntaxError> {
+    let start_token = self.parse_token(lexer::TokenKind::SquareBracketOpening)?;
+    let gql_type = self.parse_type()?;
+    let end_token = self.parse_token(lexer::TokenKind::SquareBracketClosing)?;
+    Ok(ListType {
+      gql_type: Box::new(gql_type),
+      loc: Loc {
+        start_token,
+        end_token,
+      },
+    })
+  }
+
+  fn parse_type(&mut self) -> Result<Type, SyntaxError> {
+    let peeked = self.peek_token(Some(lexer::TokenKind::Name))?;
+    match peeked.kind {
+      lexer::TokenKind::SquareBracketOpening => {
+        let list_type = self.parse_list_type()?;
+        // We don't use self.peek_token because we don't know what token to expect
+        let peeked = self.lexer.peek()?;
+        if peeked != None && peeked.unwrap().kind == lexer::TokenKind::ExclamationMark {
+          let start_token = list_type.loc.start_token.clone();
+          let end_token = self.next_token(Some(lexer::TokenKind::ExclamationMark))?;
+          Ok(Type::NonNullType(NonNullType {
+            gql_type: NullableType::ListType(list_type),
+            loc: Loc {
+              start_token,
+              end_token,
+            },
+          }))
+        } else {
+          Ok(Type::ListType(list_type))
+        }
+      }
+      lexer::TokenKind::Name => {
+        let named_type = self.parse_named_type()?;
+        // We don't use self.peek_token because we don't know what token to expect
+        let peeked = self.lexer.peek()?;
+        if peeked != None && peeked.unwrap().kind == lexer::TokenKind::ExclamationMark {
+          let start_token = named_type.loc.start_token.clone();
+          let end_token = self.next_token(Some(lexer::TokenKind::ExclamationMark))?;
+          Ok(Type::NonNullType(NonNullType {
+            gql_type: NullableType::NamedType(named_type),
+            loc: Loc {
+              start_token,
+              end_token,
+            },
+          }))
+        } else {
+          Ok(Type::NamedType(named_type))
+        }
+      }
+      _ => Err(SyntaxError {
+        message: format!("Expected {}, found {}.", lexer::TokenKind::Name, peeked),
+        position: self.lexer.get_position(),
+      }),
+    }
   }
 
   fn parse_variable(&mut self) -> Result<Variable, SyntaxError> {
