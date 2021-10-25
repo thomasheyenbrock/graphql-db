@@ -53,6 +53,16 @@ pub enum Type {
   NonNullType(NonNullType),
 }
 
+impl Type {
+  fn get_end_token(&self) -> lexer::Token {
+    match self {
+      Type::NamedType(named_type) => named_type.loc.end_token.clone(),
+      Type::ListType(list_type) => list_type.loc.end_token.clone(),
+      Type::NonNullType(non_null_type) => non_null_type.loc.end_token.clone(),
+    }
+  }
+}
+
 #[derive(Debug, PartialEq)]
 pub struct Variable {
   pub name: Name,
@@ -156,6 +166,21 @@ pub enum ConstValue {
   EnumValue(EnumValue),
   ListValue(ConstListValue),
   ObjectValue(ConstObjectValue),
+}
+
+impl ConstValue {
+  fn get_end_token(&self) -> lexer::Token {
+    match self {
+      ConstValue::IntValue(int_value) => int_value.loc.end_token.clone(),
+      ConstValue::FloatValue(float_value) => float_value.loc.end_token.clone(),
+      ConstValue::StringValue(string_value) => string_value.loc.end_token.clone(),
+      ConstValue::BooleanValue(boolean_value) => boolean_value.loc.end_token.clone(),
+      ConstValue::NullValue(null_value) => null_value.loc.end_token.clone(),
+      ConstValue::EnumValue(enum_value) => enum_value.loc.end_token.clone(),
+      ConstValue::ListValue(list_value) => list_value.loc.end_token.clone(),
+      ConstValue::ObjectValue(object_value) => object_value.loc.end_token.clone(),
+    }
+  }
 }
 
 #[derive(Debug, PartialEq)]
@@ -476,6 +501,33 @@ impl Parser<'_> {
     })
   }
 
+  fn parse_type(&mut self) -> Result<Type, SyntaxError> {
+    Err(SyntaxError {
+      message: String::from("TODO:"),
+      position: 999,
+    })
+  }
+
+  fn parse_variable(&mut self) -> Result<Variable, SyntaxError> {
+    let start_token = self.parse_token(lexer::TokenKind::DollarSign)?;
+    let name = self.parse_name()?;
+    let end_token = name.loc.end_token.clone();
+    Ok(Variable {
+      name,
+      loc: Loc {
+        start_token,
+        end_token,
+      },
+    })
+  }
+
+  fn parse_const_value(&mut self) -> Result<ConstValue, SyntaxError> {
+    Err(SyntaxError {
+      message: String::from("TODO:"),
+      position: 999,
+    })
+  }
+
   fn parse_description(&mut self) -> Result<StringValue, SyntaxError> {
     let token = self.next_token(None)?;
     let loc = Loc {
@@ -503,9 +555,44 @@ impl Parser<'_> {
   }
 
   fn parse_variable_definition(&mut self) -> Result<VariableDefinition, SyntaxError> {
-    Err(SyntaxError {
-      message: String::from("TODO:"),
-      position: 999,
+    let start_token = self.parse_token(lexer::TokenKind::DollarSign)?;
+
+    let variable = self.parse_variable()?;
+    self.parse_token(lexer::TokenKind::Colon)?;
+    let gql_type = self.parse_type()?;
+
+    let default_value = if self.peek_token(Some(lexer::TokenKind::DollarSign))?.kind
+      == lexer::TokenKind::EqualsSign
+    {
+      Some(self.parse_const_value()?)
+    } else {
+      None
+    };
+
+    let directives =
+      if self.peek_token(Some(lexer::TokenKind::AtSign))?.kind == lexer::TokenKind::AtSign {
+        self.parse_directives()?
+      } else {
+        vec![]
+      };
+
+    let end_token = if directives.len() > 0 {
+      directives.last().unwrap().loc.end_token.clone()
+    } else if default_value != None {
+      default_value.as_ref().unwrap().get_end_token()
+    } else {
+      gql_type.get_end_token()
+    };
+
+    Ok(VariableDefinition {
+      variable,
+      gql_type,
+      default_value,
+      directives,
+      loc: Loc {
+        start_token,
+        end_token,
+      },
     })
   }
 
