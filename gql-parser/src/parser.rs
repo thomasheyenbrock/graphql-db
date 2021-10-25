@@ -541,7 +541,11 @@ impl Parser<'_> {
         loc,
       }),
       _ => Err(SyntaxError {
-        message: format!("Expected String, found {}", token),
+        message: format!(
+          "Expected {}, found {}",
+          lexer::TokenKind::String { block: false },
+          token
+        ),
         position: self.lexer.get_position(),
       }),
     }
@@ -555,8 +559,6 @@ impl Parser<'_> {
   }
 
   fn parse_variable_definition(&mut self) -> Result<VariableDefinition, SyntaxError> {
-    let start_token = self.parse_token(lexer::TokenKind::DollarSign)?;
-
     let variable = self.parse_variable()?;
     self.parse_token(lexer::TokenKind::Colon)?;
     let gql_type = self.parse_type()?;
@@ -576,6 +578,7 @@ impl Parser<'_> {
         vec![]
       };
 
+    let start_token = variable.loc.start_token.clone();
     let end_token = if directives.len() > 0 {
       directives.last().unwrap().loc.end_token.clone()
     } else if default_value != None {
@@ -604,7 +607,7 @@ impl Parser<'_> {
     // There must be at least one variable
     if next.kind != lexer::TokenKind::DollarSign {
       return Err(SyntaxError {
-        message: format!("Expected \"$\", found {}.", next),
+        message: format!("Expected {}, found {}.", lexer::TokenKind::DollarSign, next),
         position: self.lexer.get_position(),
       });
     }
@@ -618,7 +621,7 @@ impl Parser<'_> {
       return Err(SyntaxError {
         // Align with graphql-js: The error message always expects another
         // variable instead of a closing bracket.
-        message: format!("Expected \"$\", found {}.", next),
+        message: format!("Expected {}, found {}.", lexer::TokenKind::DollarSign, next),
         position: self.lexer.get_position(),
       });
     }
