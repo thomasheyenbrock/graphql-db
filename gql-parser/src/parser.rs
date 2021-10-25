@@ -1037,10 +1037,31 @@ impl Parser<'_> {
     Ok(variable_definitions)
   }
 
-  fn parse_selection_set(&mut self) -> Result<SelectionSet, SyntaxError> {
+  fn parse_selection(&mut self) -> Result<Selection, SyntaxError> {
     Err(SyntaxError {
       message: String::from("TODO:"),
       position: 999,
+    })
+  }
+
+  fn parse_selection_set(&mut self) -> Result<SelectionSet, SyntaxError> {
+    let start_token = self.parse_token(TokenKind::CurlyBracketOpening)?;
+    let mut selections = vec1![self.parse_selection()?];
+
+    let mut next = self.peek_token(Some(TokenKind::Name))?;
+    while next.kind != TokenKind::CurlyBracketClosing {
+      selections.push(self.parse_selection()?);
+      next = self.peek_token(Some(TokenKind::Name))?;
+    }
+
+    let end_token = self.parse_token(TokenKind::CurlyBracketClosing)?;
+
+    Ok(SelectionSet {
+      selections,
+      loc: Loc {
+        start_token,
+        end_token,
+      },
     })
   }
 
