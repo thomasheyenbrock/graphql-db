@@ -120,12 +120,27 @@ pub enum TokenKind {
 impl fmt::Display for TokenKind {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
     match self {
+      TokenKind::SOF => write!(f, "<SOF>"),
+      TokenKind::EOF => write!(f, "<EOF>"),
       TokenKind::Comment => write!(f, "Comment"),
+      TokenKind::ExclamationMark => write!(f, "\"!\""),
+      TokenKind::DollarSign => write!(f, "\"$\""),
+      TokenKind::Ampersand => write!(f, "\"&\""),
+      TokenKind::RoundBracketOpening => write!(f, "\"(\""),
+      TokenKind::RoundBracketClosing => write!(f, "\")\""),
+      TokenKind::Spread => write!(f, "\"...\""),
+      TokenKind::Colon => write!(f, "\":\""),
+      TokenKind::EqualsSign => write!(f, "\"=\""),
+      TokenKind::AtSign => write!(f, "\"@\""),
+      TokenKind::SquareBracketOpening => write!(f, "\"[\""),
+      TokenKind::SquareBracketClosing => write!(f, "\"]\""),
+      TokenKind::CurlyBracketOpening => write!(f, "\"{{\""),
+      TokenKind::VerticalBar => write!(f, "\"|\""),
+      TokenKind::CurlyBracketClosing => write!(f, "\"}}\""),
       TokenKind::Name => write!(f, "Name"),
       TokenKind::Int => write!(f, "Int"),
       TokenKind::Float => write!(f, "Float"),
       TokenKind::String { .. } => write!(f, "String"),
-      _ => write!(f, "{:?}", self),
     }
   }
 }
