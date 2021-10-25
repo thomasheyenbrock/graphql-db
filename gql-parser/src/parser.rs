@@ -797,11 +797,46 @@ impl Parser<'_> {
     }
   }
 
-  fn parse_directives(&mut self) -> Result<Vec<Directive>, SyntaxError> {
+  fn parse_arguments(&mut self) -> Result<Vec<Argument>, SyntaxError> {
     Err(SyntaxError {
       message: String::from("TODO:"),
       position: 999,
     })
+  }
+
+  fn parse_directives(&mut self, expected: TokenKind) -> Result<Vec<Directive>, SyntaxError> {
+    let expected_clone = expected.clone();
+
+    let mut directives = vec![];
+    let mut next = self.peek_token(Some(expected))?;
+    while next.kind == TokenKind::AtSign {
+      let start_token = self.parse_token(TokenKind::AtSign)?;
+      let name = self.parse_name()?;
+
+      let arguments =
+        if self.peek_token(Some(expected_clone.clone()))?.kind == TokenKind::RoundBracketOpening {
+          self.parse_arguments()?
+        } else {
+          vec![]
+        };
+
+      let end_token = if arguments.len() > 0 {
+        arguments.last().unwrap().loc.end_token.clone()
+      } else {
+        name.loc.end_token.clone()
+      };
+
+      directives.push(Directive {
+        name,
+        arguments,
+        loc: Loc {
+          start_token,
+          end_token,
+        },
+      });
+      next = self.peek_token(Some(expected_clone.clone()))?;
+    }
+    Ok(directives)
   }
 
   fn parse_variable_definitions(&mut self) -> Result<Vec<VariableDefinition>, SyntaxError> {
@@ -830,7 +865,7 @@ impl Parser<'_> {
         };
 
       let directives = if self.peek_token(Some(TokenKind::AtSign))?.kind == TokenKind::AtSign {
-        self.parse_directives()?
+        self.parse_directives(TokenKind::DollarSign)?
       } else {
         vec![]
       };
@@ -922,7 +957,7 @@ impl Parser<'_> {
 
         let directives =
           if self.peek_token(Some(TokenKind::CurlyBracketOpening))?.kind == TokenKind::Name {
-            self.parse_directives()?
+            self.parse_directives(TokenKind::CurlyBracketOpening)?
           } else {
             vec![]
           };
