@@ -1040,10 +1040,162 @@ impl Parser<'_> {
   }
 
   fn parse_selection(&mut self) -> Result<Selection, SyntaxError> {
-    Err(SyntaxError {
-      message: String::from("TODO:"),
-      position: 999,
-    })
+    let peeked = self.peek_token(Some(TokenKind::Name))?;
+    match peeked.kind {
+      TokenKind::Name => {
+        let alias_or_name = self.parse_name()?;
+        let start_token = alias_or_name.loc.start_token.clone();
+
+        let peeked = self.peek_token(None)?;
+        let (alias, name) = if peeked.kind == TokenKind::Colon {
+          self.parse_token(TokenKind::Colon)?;
+          (Some(alias_or_name), self.parse_name()?)
+        } else {
+          (None, alias_or_name)
+        };
+
+        let arguments =
+          if self.peek_token(Some(TokenKind::Name))?.kind == TokenKind::RoundBracketOpening {
+            self.parse_arguments()?
+          } else {
+            vec![]
+          };
+        let directives = if self.peek_token(Some(TokenKind::Name))?.kind == TokenKind::AtSign {
+          self.parse_directives(TokenKind::Name)?
+        } else {
+          vec![]
+        };
+
+        let selection_set =
+          if self.peek_token(Some(TokenKind::Name))?.kind == TokenKind::CurlyBracketOpening {
+            Some(self.parse_selection_set()?)
+          } else {
+            None
+          };
+
+        let end_token = if selection_set != None {
+          selection_set.as_ref().unwrap().loc.end_token.clone()
+        } else if directives.len() > 0 {
+          directives.last().unwrap().loc.end_token.clone()
+        } else if arguments.len() > 0 {
+          arguments.last().unwrap().loc.end_token.clone()
+        } else {
+          name.loc.end_token.clone()
+        };
+
+        Ok(Selection::Field {
+          name,
+          alias,
+          arguments,
+          directives,
+          selection_set,
+          loc: Loc {
+            start_token,
+            end_token,
+          },
+        })
+      }
+      TokenKind::Spread => {
+        let start_token = self.parse_token(TokenKind::Spread)?;
+        let peeked = self.peek_token(Some(TokenKind::CurlyBracketOpening))?;
+        match peeked.kind {
+          TokenKind::Name => {
+            let name = self.parse_name()?;
+            if name.value == "on" {
+              let type_condition = Some(self.parse_named_type()?);
+
+              let directives = if self.peek_token(Some(TokenKind::Name))?.kind == TokenKind::AtSign
+              {
+                self.parse_directives(TokenKind::Name)?
+              } else {
+                vec![]
+              };
+
+              let selection_set = self.parse_selection_set()?;
+              let end_token = selection_set.loc.end_token.clone();
+
+              Ok(Selection::InlineFragment {
+                type_condition,
+                directives,
+                selection_set,
+                loc: Loc {
+                  start_token,
+                  end_token,
+                },
+              })
+            } else {
+              let directives = if self.peek_token(Some(TokenKind::Name))?.kind == TokenKind::AtSign
+              {
+                self.parse_directives(TokenKind::Name)?
+              } else {
+                vec![]
+              };
+
+              let end_token = if directives.len() > 0 {
+                directives.last().unwrap().loc.end_token.clone()
+              } else {
+                name.loc.end_token.clone()
+              };
+
+              Ok(Selection::FragmentSpread {
+                name,
+                directives,
+                loc: Loc {
+                  start_token,
+                  end_token,
+                },
+              })
+            }
+          }
+          TokenKind::AtSign => {
+            let directives = if self.peek_token(Some(TokenKind::Name))?.kind == TokenKind::AtSign {
+              self.parse_directives(TokenKind::Name)?
+            } else {
+              vec![]
+            };
+
+            let selection_set = self.parse_selection_set()?;
+            let end_token = selection_set.loc.end_token.clone();
+
+            Ok(Selection::InlineFragment {
+              type_condition: None,
+              directives,
+              selection_set,
+              loc: Loc {
+                start_token,
+                end_token,
+              },
+            })
+          }
+          TokenKind::CurlyBracketOpening => {
+            let selection_set = self.parse_selection_set()?;
+            let end_token = selection_set.loc.end_token.clone();
+
+            Ok(Selection::InlineFragment {
+              type_condition: None,
+              directives: vec![],
+              selection_set,
+              loc: Loc {
+                start_token,
+                end_token,
+              },
+            })
+          }
+          _ => Err(SyntaxError {
+            message: format!(
+              "Expected {}, found {}.",
+              TokenKind::CurlyBracketOpening,
+              peeked
+            ),
+            position: self.lexer.get_position(),
+          }),
+        }
+      }
+      _ => Err(SyntaxError {
+        message: format!("Expected {}, found {}.", TokenKind::Name, peeked),
+        position: self.lexer.get_position(),
+      }),
+    }
   }
 
   fn parse_selection_set(&mut self) -> Result<SelectionSet, SyntaxError> {
