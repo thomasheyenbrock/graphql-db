@@ -698,11 +698,95 @@ impl Parser<'_> {
     }
   }
 
-  fn parse_value(&mut self) -> Result<Value, SyntaxError> {
-    Err(SyntaxError {
-      message: String::from("TODO:"),
-      position: 999,
+  fn parse_list_value(&mut self) -> Result<ListValue, SyntaxError> {
+    let start_token = self.parse_token(TokenKind::SquareBracketOpening)?;
+    let mut values = vec![];
+    let mut next = self.peek_token(None)?;
+    while next.kind != TokenKind::SquareBracketClosing {
+      values.push(self.parse_value()?);
+      next = self.peek_token(None)?
+    }
+
+    let end_token = self.parse_token(TokenKind::SquareBracketClosing)?;
+    Ok(ListValue {
+      values,
+      loc: Loc {
+        start_token,
+        end_token,
+      },
     })
+  }
+
+  fn parse_object_field(&mut self) -> Result<ObjectField, SyntaxError> {
+    let name = self.parse_name()?;
+    self.parse_token(TokenKind::Colon)?;
+    let value = self.parse_value()?;
+
+    let start_token = name.loc.start_token.clone();
+    let end_token = value.get_end_token();
+
+    Ok(ObjectField {
+      name,
+      value,
+      loc: Loc {
+        start_token,
+        end_token,
+      },
+    })
+  }
+
+  fn parse_object_value(&mut self) -> Result<ObjectValue, SyntaxError> {
+    let start_token = self.parse_token(TokenKind::CurlyBracketOpening)?;
+    let mut fields = vec![];
+
+    let mut next = self.peek_token(Some(TokenKind::Name))?;
+    while next.kind != TokenKind::CurlyBracketClosing {
+      fields.push(self.parse_object_field()?);
+      next = self.peek_token(Some(TokenKind::Name))?;
+    }
+
+    if next.kind != TokenKind::CurlyBracketClosing {
+      return Err(SyntaxError {
+        // Align with graphql-js: The error message always expects another
+        // field instead of a closing bracket.
+        message: format!("Expected {}, found {}.", TokenKind::Name, next),
+        position: self.lexer.get_position(),
+      });
+    }
+    let end_token = self.next_token(Some(TokenKind::Name))?;
+
+    Ok(ObjectValue {
+      fields,
+      loc: Loc {
+        start_token,
+        end_token,
+      },
+    })
+  }
+
+  fn parse_value(&mut self) -> Result<Value, SyntaxError> {
+    let peeked = self.peek_token(None)?;
+    match peeked.kind {
+      TokenKind::DollarSign => Ok(Value::Variable(self.parse_variable()?)),
+      TokenKind::Int => Ok(Value::IntValue(self.parse_int_value()?)),
+      TokenKind::Float => Ok(Value::FloatValue(self.parse_float_value()?)),
+      TokenKind::String { .. } => Ok(Value::StringValue(self.parse_string_value()?)),
+      TokenKind::Name => {
+        if peeked.value == "true" || peeked.value == "false" {
+          Ok(Value::BooleanValue(self.parse_boolean_value()?))
+        } else if peeked.value == "null" {
+          Ok(Value::NullValue(self.parse_null_value()?))
+        } else {
+          Ok(Value::EnumValue(self.parse_enum_value()?))
+        }
+      }
+      TokenKind::SquareBracketOpening => Ok(Value::ListValue(self.parse_list_value()?)),
+      TokenKind::CurlyBracketOpening => Ok(Value::ObjectValue(self.parse_object_value()?)),
+      _ => Err(SyntaxError {
+        message: format!("Unexpected {}.", peeked),
+        position: self.lexer.get_position(),
+      }),
+    }
   }
 
   fn parse_const_list_value(&mut self) -> Result<ConstListValue, SyntaxError> {
