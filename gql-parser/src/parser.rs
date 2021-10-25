@@ -1220,20 +1220,28 @@ impl Parser<'_> {
   }
 
   fn parse_operation_definition(&mut self) -> Result<Definition, SyntaxError> {
-    let start_token = self.next_token(None)?;
-    match start_token.kind {
-      TokenKind::CurlyBracketOpening => Ok(Definition::OperationDefinition {
-        operation: OperationType::query,
-        name: None,
-        variable_definitions: vec![],
-        directives: vec![],
-        selection_set: self.parse_selection_set()?,
-        loc: Loc {
-          start_token,
-          end_token: self.parse_token(TokenKind::CurlyBracketClosing)?,
-        },
-      }),
+    let peeked = self.peek_token(None)?;
+    match peeked.kind {
+      TokenKind::CurlyBracketOpening => {
+        let selection_set = self.parse_selection_set()?;
+
+        let start_token = selection_set.loc.start_token.clone();
+        let end_token = selection_set.loc.end_token.clone();
+
+        Ok(Definition::OperationDefinition {
+          operation: OperationType::query,
+          name: None,
+          variable_definitions: vec![],
+          directives: vec![],
+          selection_set,
+          loc: Loc {
+            start_token,
+            end_token,
+          },
+        })
+      }
       TokenKind::Name => {
+        let start_token = self.next_token(None)?;
         let operation = if start_token.value == "query" {
           OperationType::query
         } else if start_token.value == "mutation" {
@@ -1285,7 +1293,7 @@ impl Parser<'_> {
         })
       }
       _ => Err(SyntaxError {
-        message: format!("Unexpected {}.", start_token),
+        message: format!("Unexpected {}.", peeked),
         position: self.lexer.get_position(),
       }),
     }
@@ -1571,7 +1579,7 @@ mod parser {
   #[test]
   fn should_work() {
     assert_eq!(
-      parse("query ($foo: Int) { hello }"),
+      parse("{ hello }"),
       Ok(Document {
         definitions: vec1![Definition::OperationDefinition {
           operation: OperationType::query,
