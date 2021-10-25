@@ -145,6 +145,18 @@ impl fmt::Display for TokenKind {
   }
 }
 
+impl TokenKind {
+  pub fn equals(self, token_kind: TokenKind) -> bool {
+    match self {
+      TokenKind::String { .. } => match token_kind {
+        TokenKind::String { .. } => true,
+        _ => false,
+      },
+      _ => self == token_kind,
+    }
+  }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Token {
   pub kind: TokenKind,

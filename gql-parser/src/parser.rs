@@ -492,7 +492,7 @@ impl Parser<'_> {
   fn parse_token(&mut self, token_kind: TokenKind) -> Result<Token, SyntaxError> {
     let token = self.next_token(Some(token_kind.clone()))?;
     let cloned_token = token.clone();
-    if matches!(token.kind, token_kind) {
+    if token_kind.clone().equals(token.kind) {
       Ok(cloned_token)
     } else {
       Err(SyntaxError {
