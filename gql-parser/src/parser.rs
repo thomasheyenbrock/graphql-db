@@ -1586,116 +1586,457 @@ mod parser {
   use super::*;
 
   #[test]
-  fn should_work() {
+  fn should_parse_example_query() {
+    let query = std::fs::read_to_string("src/example.gql").unwrap();
     assert_eq!(
-      parse("{ hello }"),
+      parse(&query),
       Ok(Document {
-        definitions: vec1![Definition::OperationDefinition {
-          operation: OperationType::query,
-          name: None,
-          variable_definitions: vec![],
-          directives: vec![],
-          selection_set: SelectionSet {
-            selections: vec1![Selection::Field {
-              name: Name {
-                value: String::from("hello"),
-                loc: Loc {
-                  start_token: Token {
-                    kind: TokenKind::Name,
-                    value: String::from("hello"),
-                    start: 2,
-                    end: 7,
-                    line: 1,
-                    column: 3
-                  },
-                  end_token: Token {
-                    kind: TokenKind::Name,
-                    value: String::from("hello"),
-                    start: 2,
-                    end: 7,
-                    line: 1,
-                    column: 3
-                  },
-                },
-              },
-              alias: None,
-              arguments: vec![],
-              directives: vec![],
-              selection_set: None,
+        definitions: vec1![
+          Definition::OperationDefinition {
+            operation: OperationType::query,
+            name: Some(Name {
+              value: String::from("IgnoredTokens"),
+              #[cfg_attr(rustfmt, rustfmt_skip)]
               loc: Loc {
-                start_token: Token {
-                  kind: TokenKind::Name,
-                  value: String::from("hello"),
-                  start: 2,
-                  end: 7,
-                  line: 1,
-                  column: 3
+                start_token: Token { kind: TokenKind::Name, value: String::from("IgnoredTokens"), line: 6, column: 7, start: 172, end: 185 },
+                end_token:   Token { kind: TokenKind::Name, value: String::from("IgnoredTokens"), line: 6, column: 7, start: 172, end: 185 },
+              }
+            }),
+            variable_definitions: vec![],
+            directives: vec![],
+            selection_set: SelectionSet {
+              selections: vec1![Selection::Field {
+                name: Name {
+                  value: String::from("myField"),
+                  #[cfg_attr(rustfmt, rustfmt_skip)]
+                  loc: Loc {
+                    start_token: Token { kind: TokenKind::Name, value: String::from("myField"), line: 6, column: 22, start: 187, end: 194 },
+                    end_token:   Token { kind: TokenKind::Name, value: String::from("myField"), line: 6, column: 22, start: 187, end: 194 },
+                  }
                 },
-                end_token: Token {
-                  kind: TokenKind::Name,
-                  value: String::from("hello"),
-                  start: 2,
-                  end: 7,
-                  line: 1,
-                  column: 3
+                alias: None,
+                arguments: vec![Argument {
+                  name: Name {
+                    value: String::from("myArg"),
+                    #[cfg_attr(rustfmt, rustfmt_skip)]
+                    loc: Loc {
+                      start_token: Token { kind: TokenKind::Name, value: String::from("myArg"), line: 6, column: 34, start: 199, end: 204 },
+                      end_token:   Token { kind: TokenKind::Name, value: String::from("myArg"), line: 6, column: 34, start: 199, end: 204 },
+                    },
+                  },
+                  value: Value::StringValue(StringValue {
+                    value: String::from("myVal"),
+                    block: false,
+                    #[cfg_attr(rustfmt, rustfmt_skip)]
+                    loc: Loc {
+                      start_token: Token { kind: TokenKind::String { block: false }, value: String::from("myVal"), line: 7, column: 1, start: 210, end: 217 },
+                      end_token:   Token { kind: TokenKind::String { block: false }, value: String::from("myVal"), line: 7, column: 1, start: 210, end: 217 },
+                    },
+                  }),
+                  #[cfg_attr(rustfmt, rustfmt_skip)]
+                  loc: Loc {
+                    start_token: Token { kind: TokenKind::Name,                    value: String::from("myArg"), line: 6, column: 34, start: 199, end: 204 },
+                    end_token:   Token { kind: TokenKind::String { block: false }, value: String::from("myVal"), line: 7, column:  1, start: 210, end: 217 },
+                  },
+                }],
+                directives: vec![],
+                selection_set: None,
+                #[cfg_attr(rustfmt, rustfmt_skip)]
+                loc: Loc {
+                  start_token: Token { kind: TokenKind::Name,                value: String::from("myField"), line: 6, column: 22, start: 187, end: 194 },
+                  end_token:   Token { kind: TokenKind::RoundBracketClosing, value: String::from(")"),       line: 7, column:  8, start: 217, end: 218 },
                 },
+              }],
+              #[cfg_attr(rustfmt, rustfmt_skip)]
+              loc: Loc {
+                start_token: Token { kind: TokenKind::CurlyBracketOpening, value: String::from("{"), line: 6, column: 21, start: 186, end: 187 },
+                end_token:   Token { kind: TokenKind::CurlyBracketClosing, value: String::from("}"), line: 8, column:  2, start: 240, end: 241 },
               },
-            }],
+            },
+            #[cfg_attr(rustfmt, rustfmt_skip)]
             loc: Loc {
-              start_token: Token {
-                kind: TokenKind::CurlyBracketOpening,
-                value: String::from("{"),
-                start: 0,
-                end: 1,
-                line: 1,
-                column: 1
-              },
-              end_token: Token {
-                kind: TokenKind::CurlyBracketClosing,
-                value: String::from("}"),
-                start: 8,
-                end: 9,
-                line: 1,
-                column: 9
-              },
+              start_token: Token { kind: TokenKind::Name,                value: String::from("query"), line: 6, column: 1, start: 166, end: 171 },
+              end_token:   Token { kind: TokenKind::CurlyBracketClosing, value: String::from("}"),     line: 8, column: 2, start: 240, end: 241 },
             },
           },
-          loc: Loc {
-            start_token: Token {
-              kind: TokenKind::CurlyBracketOpening,
-              value: String::from("{"),
-              start: 0,
-              end: 1,
-              line: 1,
-              column: 1
+          Definition::OperationDefinition {
+            operation: OperationType::query,
+            name: None,
+            variable_definitions: vec![],
+            directives: vec![],
+            selection_set: SelectionSet {
+              selections: vec1![
+                Selection::Field {
+                  name: Name {
+                    value: String::from("myField"),
+                    #[cfg_attr(rustfmt, rustfmt_skip)]
+                    loc: Loc {
+                      start_token: Token { kind: TokenKind::Name, value: String::from("myField"), line: 15, column: 3, start: 395, end: 402 },
+                      end_token:   Token { kind: TokenKind::Name, value: String::from("myField"), line: 15, column: 3, start: 395, end: 402 },
+                    }
+                  },
+                  alias: None,
+                  arguments: vec![
+                    Argument {
+                      name: Name {
+                        value: String::from("intArg"),
+                        #[cfg_attr(rustfmt, rustfmt_skip)]
+                        loc: Loc {
+                          start_token: Token { kind: TokenKind::Name, value: String::from("intArg"), line: 16, column: 5, start: 408, end: 414 },
+                          end_token:   Token { kind: TokenKind::Name, value: String::from("intArg"), line: 16, column: 5, start: 408, end: 414 },
+                        }
+                      },
+                      value: Value::IntValue(IntValue {
+                        value: String::from("0"),
+                        #[cfg_attr(rustfmt, rustfmt_skip)]
+                        loc: Loc {
+                          start_token: Token { kind: TokenKind::Int, value: String::from("0"), line: 16, column: 13, start: 416, end: 417 },
+                          end_token:   Token { kind: TokenKind::Int, value: String::from("0"), line: 16, column: 13, start: 416, end: 417 },
+                        }
+                      }),
+                      #[cfg_attr(rustfmt, rustfmt_skip)]
+                      loc: Loc {
+                        start_token: Token { kind: TokenKind::Name, value: String::from("intArg"), line: 16, column:  5, start: 408, end: 414 },
+                        end_token:   Token { kind: TokenKind::Int,  value: String::from("0"),      line: 16, column: 13, start: 416, end: 417 },
+                      }
+                    },
+                    Argument {
+                      name: Name {
+                        value: String::from("intArg"),
+                        #[cfg_attr(rustfmt, rustfmt_skip)]
+                        loc: Loc {
+                          start_token: Token { kind: TokenKind::Name, value: String::from("intArg"), line: 17, column: 5, start: 422, end: 428 },
+                          end_token:   Token { kind: TokenKind::Name, value: String::from("intArg"), line: 17, column: 5, start: 422, end: 428 },
+                        }
+                      },
+                      value: Value::IntValue(IntValue {
+                        value: String::from("-0"),
+                        #[cfg_attr(rustfmt, rustfmt_skip)]
+                        loc: Loc {
+                          start_token: Token { kind: TokenKind::Int, value: String::from("-0"), line: 17, column: 13, start: 430, end: 432 },
+                          end_token:   Token { kind: TokenKind::Int, value: String::from("-0"), line: 17, column: 13, start: 430, end: 432 },
+                        }
+                      }),
+                      #[cfg_attr(rustfmt, rustfmt_skip)]
+                      loc: Loc {
+                        start_token: Token { kind: TokenKind::Name, value: String::from("intArg"), line: 17, column:  5, start: 422, end: 428 },
+                        end_token:   Token { kind: TokenKind::Int,  value: String::from("-0"),     line: 17, column: 13, start: 430, end: 432 },
+                      }
+                    },
+                    Argument {
+                      name: Name {
+                        value: String::from("intArg"),
+                        #[cfg_attr(rustfmt, rustfmt_skip)]
+                        loc: Loc {
+                          start_token: Token { kind: TokenKind::Name, value: String::from("intArg"), line: 18, column: 5, start: 437, end: 443 },
+                          end_token:   Token { kind: TokenKind::Name, value: String::from("intArg"), line: 18, column: 5, start: 437, end: 443 },
+                        }
+                      },
+                      value: Value::IntValue(IntValue {
+                        value: String::from("42"),
+                        #[cfg_attr(rustfmt, rustfmt_skip)]
+                        loc: Loc {
+                          start_token: Token { kind: TokenKind::Int, value: String::from("42"), line: 18, column: 13, start: 445, end: 447 },
+                          end_token:   Token { kind: TokenKind::Int, value: String::from("42"), line: 18, column: 13, start: 445, end: 447 },
+                        }
+                      }),
+                      #[cfg_attr(rustfmt, rustfmt_skip)]
+                      loc: Loc {
+                        start_token: Token { kind: TokenKind::Name, value: String::from("intArg"), line: 18, column:  5, start: 437, end: 443 },
+                        end_token:   Token { kind: TokenKind::Int,  value: String::from("42"),     line: 18, column: 13, start: 445, end: 447 },
+                      }
+                    },
+                    Argument {
+                      name: Name {
+                        value: String::from("intArg"),
+                        #[cfg_attr(rustfmt, rustfmt_skip)]
+                        loc: Loc {
+                          start_token: Token { kind: TokenKind::Name, value: String::from("intArg"), line: 19, column: 5, start: 452, end: 458 },
+                          end_token:   Token { kind: TokenKind::Name, value: String::from("intArg"), line: 19, column: 5, start: 452, end: 458 },
+                        }
+                      },
+                      value: Value::IntValue(IntValue {
+                        value: String::from("-42"),
+                        #[cfg_attr(rustfmt, rustfmt_skip)]
+                        loc: Loc {
+                          start_token: Token { kind: TokenKind::Int, value: String::from("-42"), line: 19, column: 13, start: 460, end: 463 },
+                          end_token:   Token { kind: TokenKind::Int, value: String::from("-42"), line: 19, column: 13, start: 460, end: 463 },
+                        }
+                      }),
+                      #[cfg_attr(rustfmt, rustfmt_skip)]
+                      loc: Loc {
+                        start_token: Token { kind: TokenKind::Name, value: String::from("intArg"), line: 19, column:  5, start: 452, end: 458 },
+                        end_token:   Token { kind: TokenKind::Int,  value: String::from("-42"),    line: 19, column: 13, start: 460, end: 463 },
+                      }
+                    },
+                    Argument {
+                      name: Name {
+                        value: String::from("floatArg"),
+                        #[cfg_attr(rustfmt, rustfmt_skip)]
+                        loc: Loc {
+                          start_token: Token { kind: TokenKind::Name, value: String::from("floatArg"), line: 20, column: 5, start: 468, end: 476 },
+                          end_token:   Token { kind: TokenKind::Name, value: String::from("floatArg"), line: 20, column: 5, start: 468, end: 476 },
+                        }
+                      },
+                      value: Value::FloatValue(FloatValue {
+                        value: String::from("0.43e44"),
+                        #[cfg_attr(rustfmt, rustfmt_skip)]
+                        loc: Loc {
+                          start_token: Token { kind: TokenKind::Float, value: String::from("0.43e44"), line: 20, column: 15, start: 478, end: 485 },
+                          end_token:   Token { kind: TokenKind::Float, value: String::from("0.43e44"), line: 20, column: 15, start: 478, end: 485 },
+                        }
+                      }),
+                      #[cfg_attr(rustfmt, rustfmt_skip)]
+                      loc: Loc {
+                        start_token: Token { kind: TokenKind::Name,   value: String::from("floatArg"), line: 20, column:  5, start: 468, end: 476 },
+                        end_token:   Token { kind: TokenKind::Float,  value: String::from("0.43e44"),  line: 20, column: 15, start: 478, end: 485 },
+                      }
+                    },
+                    Argument {
+                      name: Name {
+                        value: String::from("floatArg"),
+                        #[cfg_attr(rustfmt, rustfmt_skip)]
+                        loc: Loc {
+                          start_token: Token { kind: TokenKind::Name, value: String::from("floatArg"), line: 21, column: 5, start: 490, end: 498 },
+                          end_token:   Token { kind: TokenKind::Name, value: String::from("floatArg"), line: 21, column: 5, start: 490, end: 498 },
+                        }
+                      },
+                      value: Value::FloatValue(FloatValue {
+                        value: String::from("0.43E44"),
+                        #[cfg_attr(rustfmt, rustfmt_skip)]
+                        loc: Loc {
+                          start_token: Token { kind: TokenKind::Float, value: String::from("0.43E44"), line: 21, column: 15, start: 500, end: 507 },
+                          end_token:   Token { kind: TokenKind::Float, value: String::from("0.43E44"), line: 21, column: 15, start: 500, end: 507 },
+                        }
+                      }),
+                      #[cfg_attr(rustfmt, rustfmt_skip)]
+                      loc: Loc {
+                        start_token: Token { kind: TokenKind::Name,   value: String::from("floatArg"), line: 21, column:  5, start: 490, end: 498 },
+                        end_token:   Token { kind: TokenKind::Float,  value: String::from("0.43E44"),  line: 21, column: 15, start: 500, end: 507 },
+                      }
+                    },
+                    Argument {
+                      name: Name {
+                        value: String::from("floatArg"),
+                        #[cfg_attr(rustfmt, rustfmt_skip)]
+                        loc: Loc {
+                          start_token: Token { kind: TokenKind::Name, value: String::from("floatArg"), line: 22, column: 5, start: 512, end: 520 },
+                          end_token:   Token { kind: TokenKind::Name, value: String::from("floatArg"), line: 22, column: 5, start: 512, end: 520 },
+                        }
+                      },
+                      value: Value::FloatValue(FloatValue {
+                        value: String::from("0.43e+44"),
+                        #[cfg_attr(rustfmt, rustfmt_skip)]
+                        loc: Loc {
+                          start_token: Token { kind: TokenKind::Float, value: String::from("0.43e+44"), line: 22, column: 15, start: 522, end: 530 },
+                          end_token:   Token { kind: TokenKind::Float, value: String::from("0.43e+44"), line: 22, column: 15, start: 522, end: 530 },
+                        }
+                      }),
+                      #[cfg_attr(rustfmt, rustfmt_skip)]
+                      loc: Loc {
+                        start_token: Token { kind: TokenKind::Name,   value: String::from("floatArg"), line: 22, column:  5, start: 512, end: 520 },
+                        end_token:   Token { kind: TokenKind::Float,  value: String::from("0.43e+44"), line: 22, column: 15, start: 522, end: 530 },
+                      }
+                    },
+                    Argument {
+                      name: Name {
+                        value: String::from("floatArg"),
+                        #[cfg_attr(rustfmt, rustfmt_skip)]
+                        loc: Loc {
+                          start_token: Token { kind: TokenKind::Name, value: String::from("floatArg"), line: 23, column: 5, start: 535, end: 543 },
+                          end_token:   Token { kind: TokenKind::Name, value: String::from("floatArg"), line: 23, column: 5, start: 535, end: 543 },
+                        }
+                      },
+                      value: Value::FloatValue(FloatValue {
+                        value: String::from("0.43E+44"),
+                        #[cfg_attr(rustfmt, rustfmt_skip)]
+                        loc: Loc {
+                          start_token: Token { kind: TokenKind::Float, value: String::from("0.43E+44"), line: 23, column: 15, start: 545, end: 553 },
+                          end_token:   Token { kind: TokenKind::Float, value: String::from("0.43E+44"), line: 23, column: 15, start: 545, end: 553 },
+                        }
+                      }),
+                      #[cfg_attr(rustfmt, rustfmt_skip)]
+                      loc: Loc {
+                        start_token: Token { kind: TokenKind::Name,   value: String::from("floatArg"), line: 23, column:  5, start: 535, end: 543 },
+                        end_token:   Token { kind: TokenKind::Float,  value: String::from("0.43E+44"), line: 23, column: 15, start: 545, end: 553 },
+                      }
+                    },
+                    Argument {
+                      name: Name {
+                        value: String::from("floatArg"),
+                        #[cfg_attr(rustfmt, rustfmt_skip)]
+                        loc: Loc {
+                          start_token: Token { kind: TokenKind::Name, value: String::from("floatArg"), line: 24, column: 5, start: 558, end: 566 },
+                          end_token:   Token { kind: TokenKind::Name, value: String::from("floatArg"), line: 24, column: 5, start: 558, end: 566 },
+                        }
+                      },
+                      value: Value::FloatValue(FloatValue {
+                        value: String::from("0.43e-44"),
+                        #[cfg_attr(rustfmt, rustfmt_skip)]
+                        loc: Loc {
+                          start_token: Token { kind: TokenKind::Float, value: String::from("0.43e-44"), line: 24, column: 15, start: 568, end: 576 },
+                          end_token:   Token { kind: TokenKind::Float, value: String::from("0.43e-44"), line: 24, column: 15, start: 568, end: 576 },
+                        }
+                      }),
+                      #[cfg_attr(rustfmt, rustfmt_skip)]
+                      loc: Loc {
+                        start_token: Token { kind: TokenKind::Name,   value: String::from("floatArg"), line: 24, column:  5, start: 558, end: 566 },
+                        end_token:   Token { kind: TokenKind::Float,  value: String::from("0.43e-44"), line: 24, column: 15, start: 568, end: 576 },
+                      }
+                    },
+                    Argument {
+                      name: Name {
+                        value: String::from("floatArg"),
+                        #[cfg_attr(rustfmt, rustfmt_skip)]
+                        loc: Loc {
+                          start_token: Token { kind: TokenKind::Name, value: String::from("floatArg"), line: 25, column: 5, start: 581, end: 589 },
+                          end_token:   Token { kind: TokenKind::Name, value: String::from("floatArg"), line: 25, column: 5, start: 581, end: 589 },
+                        }
+                      },
+                      value: Value::FloatValue(FloatValue {
+                        value: String::from("0.43E-44"),
+                        #[cfg_attr(rustfmt, rustfmt_skip)]
+                        loc: Loc {
+                          start_token: Token { kind: TokenKind::Float, value: String::from("0.43E-44"), line: 25, column: 15, start: 591, end: 599 },
+                          end_token:   Token { kind: TokenKind::Float, value: String::from("0.43E-44"), line: 25, column: 15, start: 591, end: 599 },
+                        }
+                      }),
+                      #[cfg_attr(rustfmt, rustfmt_skip)]
+                      loc: Loc {
+                        start_token: Token { kind: TokenKind::Name,   value: String::from("floatArg"), line: 25, column:  5, start: 581, end: 589 },
+                        end_token:   Token { kind: TokenKind::Float,  value: String::from("0.43E-44"), line: 25, column: 15, start: 591, end: 599 },
+                      }
+                    },
+                    Argument {
+                      name: Name {
+                        value: String::from("floatArg"),
+                        #[cfg_attr(rustfmt, rustfmt_skip)]
+                        loc: Loc {
+                          start_token: Token { kind: TokenKind::Name, value: String::from("floatArg"), line: 26, column: 5, start: 604, end: 612 },
+                          end_token:   Token { kind: TokenKind::Name, value: String::from("floatArg"), line: 26, column: 5, start: 604, end: 612 },
+                        }
+                      },
+                      value: Value::FloatValue(FloatValue {
+                        value: String::from("0e44"),
+                        #[cfg_attr(rustfmt, rustfmt_skip)]
+                        loc: Loc {
+                          start_token: Token { kind: TokenKind::Float, value: String::from("0e44"), line: 26, column: 15, start: 614, end: 618 },
+                          end_token:   Token { kind: TokenKind::Float, value: String::from("0e44"), line: 26, column: 15, start: 614, end: 618 },
+                        }
+                      }),
+                      #[cfg_attr(rustfmt, rustfmt_skip)]
+                      loc: Loc {
+                        start_token: Token { kind: TokenKind::Name,   value: String::from("floatArg"), line: 26, column:  5, start: 604, end: 612 },
+                        end_token:   Token { kind: TokenKind::Float,  value: String::from("0e44"),     line: 26, column: 15, start: 614, end: 618 },
+                      }
+                    },
+                    Argument {
+                      name: Name {
+                        value: String::from("floatArg"),
+                        #[cfg_attr(rustfmt, rustfmt_skip)]
+                        loc: Loc {
+                          start_token: Token { kind: TokenKind::Name, value: String::from("floatArg"), line: 27, column: 5, start: 623, end: 631 },
+                          end_token:   Token { kind: TokenKind::Name, value: String::from("floatArg"), line: 27, column: 5, start: 623, end: 631 },
+                        }
+                      },
+                      value: Value::FloatValue(FloatValue {
+                        value: String::from("0E44"),
+                        #[cfg_attr(rustfmt, rustfmt_skip)]
+                        loc: Loc {
+                          start_token: Token { kind: TokenKind::Float, value: String::from("0E44"), line: 27, column: 15, start: 633, end: 637 },
+                          end_token:   Token { kind: TokenKind::Float, value: String::from("0E44"), line: 27, column: 15, start: 633, end: 637 },
+                        }
+                      }),
+                      #[cfg_attr(rustfmt, rustfmt_skip)]
+                      loc: Loc {
+                        start_token: Token { kind: TokenKind::Name,   value: String::from("floatArg"), line: 27, column:  5, start: 623, end: 631 },
+                        end_token:   Token { kind: TokenKind::Float,  value: String::from("0E44"),     line: 27, column: 15, start: 633, end: 637 },
+                      }
+                    }
+                  ],
+                  directives: vec![],
+                  selection_set: None,
+                  #[cfg_attr(rustfmt, rustfmt_skip)]
+                  loc: Loc {
+                    start_token: Token { kind: TokenKind::Name,                value: String::from("myField"), line: 15, column: 3, start: 395, end: 402 },
+                    end_token:   Token { kind: TokenKind::RoundBracketClosing, value: String::from(")"),       line: 21, column: 3, start: 488, end: 489 },
+                  },
+                },
+                // Selection::Field {
+                //   name: Name {
+                //     value: String::from("my123Name"),
+                //     #[cfg_attr(rustfmt, rustfmt_skip)]
+                //     loc: Loc {
+                //       start_token: Token { kind: TokenKind::Name, value: String::from("my123Name"), line: 94, column: 3, start: 2103, end: 2112 },
+                //       end_token:   Token { kind: TokenKind::Name, value: String::from("my123Name"), line: 94, column: 3, start: 2103, end: 2112 },
+                //     }
+                //   },
+                //   alias: None,
+                //   arguments: vec![],
+                //   directives: vec![],
+                //   selection_set: None,
+                //   #[cfg_attr(rustfmt, rustfmt_skip)]
+                //   loc: Loc {
+                //     start_token: Token { kind: TokenKind::Name, value: String::from("my123Name"), line: 94, column: 3, start: 2103, end: 2112 },
+                //     end_token:   Token { kind: TokenKind::Name, value: String::from("my123Name"), line: 94, column: 3, start: 2103, end: 2112 },
+                //   },
+                // },
+                // Selection::Field {
+                //   name: Name {
+                //     value: String::from("_myName"),
+                //     #[cfg_attr(rustfmt, rustfmt_skip)]
+                //     loc: Loc {
+                //       start_token: Token { kind: TokenKind::Name, value: String::from("_myName"), line: 95, column: 3, start: 2115, end: 2122 },
+                //       end_token:   Token { kind: TokenKind::Name, value: String::from("_myName"), line: 95, column: 3, start: 2115, end: 2122 },
+                //     }
+                //   },
+                //   alias: None,
+                //   arguments: vec![],
+                //   directives: vec![],
+                //   selection_set: None,
+                //   #[cfg_attr(rustfmt, rustfmt_skip)]
+                //   loc: Loc {
+                //     start_token: Token { kind: TokenKind::Name, value: String::from("_myName"), line: 95, column: 3, start: 2115, end: 2122 },
+                //     end_token:   Token { kind: TokenKind::Name, value: String::from("_myName"), line: 95, column: 3, start: 2115, end: 2122 },
+                //   },
+                // },
+                // Selection::Field {
+                //   name: Name {
+                //     value: String::from("_my_name"),
+                //     #[cfg_attr(rustfmt, rustfmt_skip)]
+                //     loc: Loc {
+                //       start_token: Token { kind: TokenKind::Name, value: String::from("_my_name"), line: 96, column: 3, start: 2125, end: 2133 },
+                //       end_token:   Token { kind: TokenKind::Name, value: String::from("_my_name"), line: 96, column: 3, start: 2125, end: 2133 },
+                //     }
+                //   },
+                //   alias: None,
+                //   arguments: vec![],
+                //   directives: vec![],
+                //   selection_set: None,
+                //   #[cfg_attr(rustfmt, rustfmt_skip)]
+                //   loc: Loc {
+                //     start_token: Token { kind: TokenKind::Name, value: String::from("_my_name"), line: 96, column: 3, start: 2125, end: 2133 },
+                //     end_token:   Token { kind: TokenKind::Name, value: String::from("_my_name"), line: 96, column: 3, start: 2125, end: 2133 },
+                //   },
+                // }
+              ],
+              #[cfg_attr(rustfmt, rustfmt_skip)]
+              loc: Loc {
+                start_token: Token { kind: TokenKind::CurlyBracketOpening, value: String::from("{"), line: 14, column: 1, start: 391, end: 392 },
+                end_token:   Token { kind: TokenKind::CurlyBracketClosing, value: String::from("}"), line: 22, column: 1, start: 490, end: 491 },
+              },
             },
-            end_token: Token {
-              kind: TokenKind::CurlyBracketClosing,
-              value: String::from("}"),
-              start: 8,
-              end: 9,
-              line: 1,
-              column: 9
+            #[cfg_attr(rustfmt, rustfmt_skip)]
+            loc: Loc {
+              start_token: Token { kind: TokenKind::CurlyBracketOpening, value: String::from("{"), line: 14, column: 1, start: 391, end: 392 },
+              end_token:   Token { kind: TokenKind::CurlyBracketClosing, value: String::from("}"), line: 22, column: 1, start: 490, end: 491 },
             },
           },
-        }],
+        ],
+        #[cfg_attr(rustfmt, rustfmt_skip)]
         loc: Loc {
-          start_token: Token {
-            kind: TokenKind::SOF,
-            value: String::from("<SOF>"),
-            line: 0,
-            column: 0,
-            start: 0,
-            end: 0,
-          },
-          end_token: Token {
-            kind: TokenKind::EOF,
-            value: String::from("<EOF>"),
-            start: 9,
-            end: 9,
-            line: 1,
-            column: 10
-          }
+          start_token: Token { kind: TokenKind::SOF, value: String::from("<SOF>"), line: 0,  column: 0, start:   0, end:   0 },
+          end_token:   Token { kind: TokenKind::EOF, value: String::from("<EOF>"), line: 23, column: 1, start: 492, end: 492 },
         }
       })
     )
