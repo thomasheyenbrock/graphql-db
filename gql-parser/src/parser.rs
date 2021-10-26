@@ -916,8 +916,6 @@ impl Parser<'_> {
   }
 
   fn parse_arguments(&mut self) -> Result<Vec<Argument>, SyntaxError> {
-    self.parse_token(TokenKind::RoundBracketOpening)?;
-
     let mut arguments = vec![];
     let mut next = self.peek_token(Some(TokenKind::Name))?;
     while next.kind != TokenKind::RoundBracketClosing {
@@ -940,10 +938,6 @@ impl Parser<'_> {
       next = self.peek_token(Some(TokenKind::Name))?;
     }
 
-    // Align with graphql-js: The error message always expects another
-    // argument instead of a closing bracket.
-    self.next_token(Some(TokenKind::Name))?;
-
     Ok(arguments)
   }
 
@@ -956,15 +950,21 @@ impl Parser<'_> {
       let start_token = self.parse_token(TokenKind::AtSign)?;
       let name = self.parse_name()?;
 
-      let arguments =
+      let (arguments, arguments_end_token) =
         if self.peek_token(Some(expected_clone.clone()))?.kind == TokenKind::RoundBracketOpening {
-          self.parse_arguments()?
+          self.parse_token(TokenKind::RoundBracketOpening)?;
+          (
+            self.parse_arguments()?,
+            // Align with graphql-js: The error message always expects another
+            // argument instead of a closing bracket.
+            Some(self.next_token(Some(TokenKind::Name))?),
+          )
         } else {
-          vec![]
+          (vec![], None)
         };
 
-      let end_token = if arguments.len() > 0 {
-        arguments.last().unwrap().loc.end_token.clone()
+      let end_token = if arguments_end_token != None {
+        arguments_end_token.unwrap()
       } else {
         name.loc.end_token.clone()
       };
@@ -1063,11 +1063,17 @@ impl Parser<'_> {
           (None, alias_or_name)
         };
 
-        let arguments =
+        let (arguments, arguments_end_token) =
           if self.peek_token(Some(TokenKind::Name))?.kind == TokenKind::RoundBracketOpening {
-            self.parse_arguments()?
+            self.parse_token(TokenKind::RoundBracketOpening)?;
+            (
+              self.parse_arguments()?,
+              // Align with graphql-js: The error message always expects another
+              // argument instead of a closing bracket.
+              Some(self.next_token(Some(TokenKind::Name))?),
+            )
           } else {
-            vec![]
+            (vec![], None)
           };
         let directives = if self.peek_token(Some(TokenKind::Name))?.kind == TokenKind::AtSign {
           self.parse_directives(TokenKind::Name)?
@@ -1086,8 +1092,8 @@ impl Parser<'_> {
           selection_set.as_ref().unwrap().loc.end_token.clone()
         } else if directives.len() > 0 {
           directives.last().unwrap().loc.end_token.clone()
-        } else if arguments.len() > 0 {
-          arguments.last().unwrap().loc.end_token.clone()
+        } else if arguments_end_token != None {
+          arguments_end_token.unwrap()
         } else {
           name.loc.end_token.clone()
         };
