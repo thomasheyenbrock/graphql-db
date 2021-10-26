@@ -16,6 +16,16 @@ pub enum OperationType {
   subscription,
 }
 
+impl std::fmt::Display for OperationType {
+  fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    match self {
+      OperationType::query => write!(f, "query"),
+      OperationType::mutation => write!(f, "mutation"),
+      OperationType::subscription => write!(f, "subscription"),
+    }
+  }
+}
+
 #[derive(Debug, PartialEq)]
 pub struct Name {
   pub value: String,
