@@ -40,13 +40,66 @@ fn transform_named_type<'a>(
   Ok(obj)
 }
 
+fn transform_list_type<'a>(
+  cx: &mut CallContext<'a, JsObject>,
+  list_type: &ListType,
+) -> JsResult<'a, JsObject> {
+  let obj = cx.empty_object();
+  let kind = cx.string("ListType");
+  obj.set(cx, "kind", kind)?;
+
+  let gql_type = transform_type(cx, &list_type.gql_type)?;
+  obj.set(cx, "type", gql_type)?;
+
+  let loc = cx.empty_object();
+  let start = cx.number(list_type.loc.start_token.start as u32);
+  loc.set(cx, "start", start)?;
+  let end = cx.number(list_type.loc.end_token.end as u32);
+  loc.set(cx, "end", end)?;
+  obj.set(cx, "loc", loc)?;
+
+  Ok(obj)
+}
+
+fn transform_non_null_type<'a>(
+  cx: &mut CallContext<'a, JsObject>,
+  non_null_type: &NonNullType,
+) -> JsResult<'a, JsObject> {
+  let obj = cx.empty_object();
+  let kind = cx.string("NonNullType");
+  obj.set(cx, "kind", kind)?;
+
+  let gql_type = transform_nullable_type(cx, &non_null_type.gql_type)?;
+  obj.set(cx, "type", gql_type)?;
+
+  let loc = cx.empty_object();
+  let start = cx.number(non_null_type.loc.start_token.start as u32);
+  loc.set(cx, "start", start)?;
+  let end = cx.number(non_null_type.loc.end_token.end as u32);
+  loc.set(cx, "end", end)?;
+  obj.set(cx, "loc", loc)?;
+
+  Ok(obj)
+}
+
+fn transform_nullable_type<'a>(
+  cx: &mut CallContext<'a, JsObject>,
+  gql_type: &NullableType,
+) -> JsResult<'a, JsObject> {
+  match gql_type {
+    NullableType::NamedType(named_type) => transform_named_type(cx, named_type),
+    NullableType::ListType(list_type) => transform_list_type(cx, list_type),
+  }
+}
+
 fn transform_type<'a>(
   cx: &mut CallContext<'a, JsObject>,
   gql_type: &Type,
 ) -> JsResult<'a, JsObject> {
   match gql_type {
     Type::NamedType(named_type) => transform_named_type(cx, named_type),
-    _ => Ok(cx.empty_object()), // TODO: remove this
+    Type::ListType(list_type) => transform_list_type(cx, list_type),
+    Type::NonNullType(non_null_type) => transform_non_null_type(cx, non_null_type),
   }
 }
 
@@ -288,12 +341,99 @@ fn transform_value<'a>(
   }
 }
 
+fn transform_const_list_value<'a>(
+  cx: &mut CallContext<'a, JsObject>,
+  const_list_value: &gql_parser::ConstListValue,
+) -> JsResult<'a, JsObject> {
+  let obj = cx.empty_object();
+  let kind = cx.string("ListValue");
+  obj.set(cx, "kind", kind)?;
+
+  let values = cx.empty_array();
+  for (index, value) in const_list_value.values.iter().enumerate() {
+    let transformed_value = transform_const_value(cx, value)?;
+    values.set(cx, index as u32, transformed_value)?;
+  }
+  obj.set(cx, "values", values)?;
+
+  let loc = cx.empty_object();
+  let start = cx.number(const_list_value.loc.start_token.start as u32);
+  loc.set(cx, "start", start)?;
+  let end = cx.number(const_list_value.loc.end_token.end as u32);
+  loc.set(cx, "end", end)?;
+  obj.set(cx, "loc", loc)?;
+
+  Ok(obj)
+}
+
+fn transform_const_object_field<'a>(
+  cx: &mut CallContext<'a, JsObject>,
+  const_object_field: &gql_parser::ConstObjectField,
+) -> JsResult<'a, JsObject> {
+  let obj = cx.empty_object();
+  let kind = cx.string("ObjectField");
+  obj.set(cx, "kind", kind)?;
+
+  let name = transform_name(cx, &const_object_field.name)?;
+  obj.set(cx, "name", name)?;
+
+  let value = transform_const_value(cx, &const_object_field.value)?;
+  obj.set(cx, "value", value)?;
+
+  let loc = cx.empty_object();
+  let start = cx.number(const_object_field.loc.start_token.start as u32);
+  loc.set(cx, "start", start)?;
+  let end = cx.number(const_object_field.loc.end_token.end as u32);
+  loc.set(cx, "end", end)?;
+  obj.set(cx, "loc", loc)?;
+
+  Ok(obj)
+}
+
+fn transform_const_object_value<'a>(
+  cx: &mut CallContext<'a, JsObject>,
+  const_object_value: &gql_parser::ConstObjectValue,
+) -> JsResult<'a, JsObject> {
+  let obj = cx.empty_object();
+  let kind = cx.string("ObjectValue");
+  obj.set(cx, "kind", kind)?;
+
+  let fields = cx.empty_array();
+  for (index, const_object_field) in const_object_value.fields.iter().enumerate() {
+    let transformed_field = transform_const_object_field(cx, const_object_field)?;
+    fields.set(cx, index as u32, transformed_field)?;
+  }
+  obj.set(cx, "fields", fields)?;
+
+  let loc = cx.empty_object();
+  let start = cx.number(const_object_value.loc.start_token.start as u32);
+  loc.set(cx, "start", start)?;
+  let end = cx.number(const_object_value.loc.end_token.end as u32);
+  loc.set(cx, "end", end)?;
+  obj.set(cx, "loc", loc)?;
+
+  Ok(obj)
+}
+
 fn transform_const_value<'a>(
   cx: &mut CallContext<'a, JsObject>,
   value: &gql_parser::ConstValue,
 ) -> JsResult<'a, JsObject> {
   match value {
-    _ => Ok(cx.empty_object()), // TODO: remove this
+    gql_parser::ConstValue::IntValue(int_value) => transform_int_value(cx, int_value),
+    gql_parser::ConstValue::FloatValue(float_value) => transform_float_value(cx, float_value),
+    gql_parser::ConstValue::StringValue(string_value) => transform_string_value(cx, string_value),
+    gql_parser::ConstValue::BooleanValue(boolean_value) => {
+      transform_boolean_value(cx, boolean_value)
+    }
+    gql_parser::ConstValue::NullValue(null_value) => transform_null_value(cx, null_value),
+    gql_parser::ConstValue::EnumValue(enum_value) => transform_enum_value(cx, enum_value),
+    gql_parser::ConstValue::ListValue(const_list_value) => {
+      transform_const_list_value(cx, const_list_value)
+    }
+    gql_parser::ConstValue::ObjectValue(const_object_value) => {
+      transform_const_object_value(cx, const_object_value)
+    }
   }
 }
 

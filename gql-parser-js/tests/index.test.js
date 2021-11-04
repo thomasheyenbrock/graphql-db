@@ -68,12 +68,16 @@ function transformNode(node) {
       });
     case "IntValue":
       return jsonifyLocs(node);
+    case "ListType":
+      return jsonifyLocs({ ...node, type: transformNode(node.type) });
     case "ListValue":
       return jsonifyLocs({ ...node, values: node.values.map(transformNode) });
     case "Name":
       return jsonifyLocs(node);
     case "NamedType":
       return jsonifyLocs({ ...node, name: transformNode(node.name) });
+    case "NonNullType":
+      return jsonifyLocs({ ...node, type: transformNode(node.type) });
     case "NullValue":
       return jsonifyLocs(node);
     case "ObjectField":
