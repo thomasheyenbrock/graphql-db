@@ -1325,9 +1325,50 @@ impl Parser<'_> {
   }
 
   fn parse_fragment_definition(&mut self) -> Result<Definition, SyntaxError> {
-    Err(SyntaxError {
-      message: String::from("TODO:"),
-      position: 999,
+    let start_token = self.next_token(None)?;
+
+    let name = self.parse_name()?;
+
+    let on = self.next_token(None)?;
+    match on.kind {
+      TokenKind::Name => {
+        if on.value != "on" {
+          return Err(SyntaxError {
+            message: format!("Expected \"on\", found {}.", on),
+            position: self.lexer.get_position(),
+          });
+        }
+      }
+      _ => {
+        return Err(SyntaxError {
+          message: format!("Expected \"on\", found {}.", on),
+          position: self.lexer.get_position(),
+        })
+      }
+    }
+
+    let type_condition = self.parse_named_type()?;
+
+    let directives =
+      if self.peek_token(Some(TokenKind::CurlyBracketOpening))?.kind == TokenKind::AtSign {
+        self.parse_directives(TokenKind::CurlyBracketOpening)?
+      } else {
+        vec![]
+      };
+
+    let selection_set = self.parse_selection_set()?;
+
+    let end_token = selection_set.loc.end_token.clone();
+
+    Ok(Definition::FragmentDefinition {
+      name,
+      type_condition,
+      directives,
+      selection_set,
+      loc: Loc {
+        start_token,
+        end_token,
+      },
     })
   }
 

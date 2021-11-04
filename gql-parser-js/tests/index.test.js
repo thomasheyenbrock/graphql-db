@@ -43,6 +43,14 @@ function transformNode(node) {
       });
     case "FloatValue":
       return jsonifyLocs(node);
+    case "FragmentDefinition":
+      return jsonifyLocs({
+        ...node,
+        name: transformNode(node.name),
+        typeCondition: transformNode(node.typeCondition),
+        directives: node.directives.map(transformNode),
+        selectionSet: transformNode(node.selectionSet),
+      });
     case "FragmentSpread":
       return jsonifyLocs({
         ...node,
