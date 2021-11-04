@@ -1296,7 +1296,7 @@ impl Parser<'_> {
         };
 
         let directives =
-          if self.peek_token(Some(TokenKind::CurlyBracketOpening))?.kind == TokenKind::Name {
+          if self.peek_token(Some(TokenKind::CurlyBracketOpening))?.kind == TokenKind::AtSign {
             self.parse_directives(TokenKind::CurlyBracketOpening)?
           } else {
             vec![]
