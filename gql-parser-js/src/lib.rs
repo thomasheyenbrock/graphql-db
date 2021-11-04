@@ -461,6 +461,30 @@ fn transform_argument<'a>(
   Ok(obj)
 }
 
+fn transform_const_argument<'a>(
+  cx: &mut CallContext<'a, JsObject>,
+  argument: &ConstArgument,
+) -> JsResult<'a, JsObject> {
+  let obj = cx.empty_object();
+  let kind = cx.string("Argument");
+  obj.set(cx, "kind", kind)?;
+
+  let name = transform_name(cx, &argument.name)?;
+  obj.set(cx, "name", name)?;
+
+  let value = transform_const_value(cx, &argument.value)?;
+  obj.set(cx, "value", value)?;
+
+  let loc = cx.empty_object();
+  let start = cx.number(argument.loc.start_token.start as u32);
+  loc.set(cx, "start", start)?;
+  let end = cx.number(argument.loc.end_token.end as u32);
+  loc.set(cx, "end", end)?;
+  obj.set(cx, "loc", loc)?;
+
+  Ok(obj)
+}
+
 fn transform_variable_definition<'a>(
   cx: &mut CallContext<'a, JsObject>,
   variable_definition: &VariableDefinition,
@@ -518,6 +542,34 @@ fn transform_directive<'a>(
   for (index, argument) in directive.arguments.iter().enumerate() {
     let transformed_argument = transform_argument(cx, argument)?;
     arguments.set(cx, index as u32, transformed_argument)?;
+  }
+  obj.set(cx, "arguments", arguments)?;
+
+  let loc = cx.empty_object();
+  let start = cx.number(directive.loc.start_token.start as u32);
+  loc.set(cx, "start", start)?;
+  let end = cx.number(directive.loc.end_token.end as u32);
+  loc.set(cx, "end", end)?;
+  obj.set(cx, "loc", loc)?;
+
+  Ok(obj)
+}
+
+fn transform_const_directive<'a>(
+  cx: &mut CallContext<'a, JsObject>,
+  directive: &ConstDirective,
+) -> JsResult<'a, JsObject> {
+  let obj = cx.empty_object();
+  let kind = cx.string("Directive");
+  obj.set(cx, "kind", kind)?;
+
+  let name = transform_name(cx, &directive.name)?;
+  obj.set(cx, "name", name)?;
+
+  let arguments = cx.empty_array();
+  for (index, argument) in directive.arguments.iter().enumerate() {
+    let transformed_const_argument = transform_const_argument(cx, argument)?;
+    arguments.set(cx, index as u32, transformed_const_argument)?;
   }
   obj.set(cx, "arguments", arguments)?;
 
@@ -686,6 +738,30 @@ fn transform_selection_set<'a>(
   Ok(obj)
 }
 
+fn transform_operation_type_definition<'a>(
+  cx: &mut CallContext<'a, JsObject>,
+  operation_type_definition: &OperationTypeDefinition,
+) -> JsResult<'a, JsObject> {
+  let obj = cx.empty_object();
+  let kind = cx.string("OperationTypeDefinition");
+  obj.set(cx, "kind", kind)?;
+
+  let operation = cx.string(format!("{}", operation_type_definition.operation));
+  obj.set(cx, "operation", operation)?;
+
+  let gql_type = transform_named_type(cx, &operation_type_definition.gql_type)?;
+  obj.set(cx, "type", gql_type)?;
+
+  let loc = cx.empty_object();
+  let start = cx.number(operation_type_definition.loc.start_token.start as u32);
+  loc.set(cx, "start", start)?;
+  let end = cx.number(operation_type_definition.loc.end_token.end as u32);
+  loc.set(cx, "end", end)?;
+  obj.set(cx, "loc", loc)?;
+
+  Ok(obj)
+}
+
 fn transform_definition<'a>(
   cx: &mut CallContext<'a, JsObject>,
   definition: &Definition,
@@ -768,6 +844,47 @@ fn transform_definition<'a>(
 
       let t_selection_set = transform_selection_set(cx, selection_set)?;
       obj.set(cx, "selectionSet", t_selection_set)?;
+
+      let t_loc = cx.empty_object();
+      let start = cx.number(loc.start_token.start as u32);
+      t_loc.set(cx, "start", start)?;
+      let end = cx.number(loc.end_token.end as u32);
+      t_loc.set(cx, "end", end)?;
+      obj.set(cx, "loc", t_loc)?;
+    }
+    Definition::SchemaDefinition {
+      description,
+      directives,
+      operation_types,
+      loc,
+    } => {
+      let kind = cx.string("SchemaDefinition");
+      obj.set(cx, "kind", kind)?;
+
+      match description {
+        None => {
+          let t_description = cx.undefined();
+          obj.set(cx, "description", t_description)?;
+        }
+        Some(description) => {
+          let t_description = transform_string_value(cx, description)?;
+          obj.set(cx, "description", t_description)?;
+        }
+      };
+
+      let t_directives = cx.empty_array();
+      for (index, directive) in directives.iter().enumerate() {
+        let transformed_directive = transform_const_directive(cx, directive)?;
+        t_directives.set(cx, index as u32, transformed_directive)?;
+      }
+      obj.set(cx, "directives", t_directives)?;
+
+      let t_operation_types = cx.empty_array();
+      for (index, operation_type) in operation_types.iter().enumerate() {
+        let transformed_operation_type = transform_operation_type_definition(cx, operation_type)?;
+        t_operation_types.set(cx, index as u32, transformed_operation_type)?;
+      }
+      obj.set(cx, "operationTypes", t_operation_types)?;
 
       let t_loc = cx.empty_object();
       let start = cx.number(loc.start_token.start as u32);

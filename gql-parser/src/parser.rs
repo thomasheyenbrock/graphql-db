@@ -950,6 +950,31 @@ impl Parser<'_> {
 
     Ok(arguments)
   }
+  fn parse_const_arguments(&mut self) -> Result<Vec<ConstArgument>, SyntaxError> {
+    let mut arguments = vec![];
+    let mut next = self.peek_token(Some(TokenKind::Name))?;
+    while next.kind != TokenKind::RoundBracketClosing {
+      let name = self.parse_name()?;
+      self.parse_token(TokenKind::Colon)?;
+      let value = self.parse_const_value()?;
+
+      let start_token = name.loc.start_token.clone();
+      let end_token = value.get_end_token();
+
+      arguments.push(ConstArgument {
+        name,
+        value,
+        loc: Loc {
+          start_token,
+          end_token,
+        },
+      });
+
+      next = self.peek_token(Some(TokenKind::Name))?;
+    }
+
+    Ok(arguments)
+  }
 
   fn parse_directives(&mut self, expected: TokenKind) -> Result<Vec<Directive>, SyntaxError> {
     let expected_clone = expected.clone();
@@ -980,6 +1005,50 @@ impl Parser<'_> {
       };
 
       directives.push(Directive {
+        name,
+        arguments,
+        loc: Loc {
+          start_token,
+          end_token,
+        },
+      });
+      next = self.peek_token(Some(expected_clone.clone()))?;
+    }
+    Ok(directives)
+  }
+
+  fn parse_const_directives(
+    &mut self,
+    expected: TokenKind,
+  ) -> Result<Vec<ConstDirective>, SyntaxError> {
+    let expected_clone = expected.clone();
+
+    let mut directives = vec![];
+    let mut next = self.peek_token(Some(expected))?;
+    while next.kind == TokenKind::AtSign {
+      let start_token = self.parse_token(TokenKind::AtSign)?;
+      let name = self.parse_name()?;
+
+      let (arguments, arguments_end_token) =
+        if self.peek_token(Some(expected_clone.clone()))?.kind == TokenKind::RoundBracketOpening {
+          self.parse_token(TokenKind::RoundBracketOpening)?;
+          (
+            self.parse_const_arguments()?,
+            // Align with graphql-js: The error message always expects another
+            // argument instead of a closing bracket.
+            Some(self.next_token(Some(TokenKind::Name))?),
+          )
+        } else {
+          (vec![], None)
+        };
+
+      let end_token = if arguments_end_token != None {
+        arguments_end_token.unwrap()
+      } else {
+        name.loc.end_token.clone()
+      };
+
+      directives.push(ConstDirective {
         name,
         arguments,
         loc: Loc {
@@ -1245,6 +1314,38 @@ impl Parser<'_> {
     })
   }
 
+  fn parse_operation_type_definition(&mut self) -> Result<OperationTypeDefinition, SyntaxError> {
+    let start_token = self.next_token(Some(TokenKind::Name))?;
+
+    let operation = if start_token.value == "query" {
+      OperationType::query
+    } else if start_token.value == "mutation" {
+      OperationType::mutation
+    } else if start_token.value == "subscription" {
+      OperationType::subscription
+    } else {
+      return Err(SyntaxError {
+        message: format!("Unexpected name \"{}\".", start_token.value),
+        position: self.lexer.get_position(),
+      });
+    };
+
+    self.next_token(Some(TokenKind::Colon))?;
+
+    let gql_type = self.parse_named_type()?;
+
+    let end_token = gql_type.loc.end_token.clone();
+
+    Ok(OperationTypeDefinition {
+      operation,
+      gql_type,
+      loc: Loc {
+        start_token,
+        end_token,
+      },
+    })
+  }
+
   fn parse_operation_definition(&mut self) -> Result<Definition, SyntaxError> {
     let peeked = self.peek_token(None)?;
     match peeked.kind {
@@ -1377,9 +1478,37 @@ impl Parser<'_> {
     &mut self,
     description: Option<StringValue>,
   ) -> Result<Definition, SyntaxError> {
-    Err(SyntaxError {
-      message: String::from("TODO:"),
-      position: 999,
+    let name_token = self.next_token(None)?;
+
+    let directives =
+      if self.peek_token(Some(TokenKind::CurlyBracketOpening))?.kind == TokenKind::AtSign {
+        self.parse_const_directives(TokenKind::CurlyBracketOpening)?
+      } else {
+        vec![]
+      };
+
+    self.next_token(Some(TokenKind::CurlyBracketOpening))?;
+    let mut operation_types = vec1![self.parse_operation_type_definition()?];
+    let mut next = self.peek_token(Some(TokenKind::Name))?;
+    while next.kind != TokenKind::CurlyBracketClosing {
+      operation_types.push(self.parse_operation_type_definition()?);
+      next = self.peek_token(Some(TokenKind::Name))?;
+    }
+
+    let start_token = match description {
+      None => name_token,
+      Some(ref description) => description.loc.start_token.clone(),
+    };
+    let end_token = self.next_token(Some(TokenKind::CurlyBracketOpening))?;
+
+    Ok(Definition::SchemaDefinition {
+      description,
+      directives,
+      operation_types,
+      loc: Loc {
+        start_token,
+        end_token,
+      },
     })
   }
 

@@ -96,6 +96,17 @@ function transformNode(node) {
         directives: node.directives.map(transformNode),
         selectionSet: transformNode(node.selectionSet),
       });
+    case "OperationTypeDefinition":
+      return jsonifyLocs({ ...node, type: transformNode(node.type) });
+    case "SchemaDefinition":
+      return jsonifyLocs({
+        ...node,
+        description: node.description
+          ? transformNode(node.description)
+          : node.description,
+        directives: node.directives.map(transformNode),
+        operationTypes: node.operationTypes.map(transformNode),
+      });
     case "SelectionSet":
       return jsonifyLocs({
         ...node,
