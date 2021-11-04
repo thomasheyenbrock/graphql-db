@@ -98,6 +98,15 @@ function transformNode(node) {
       });
     case "OperationTypeDefinition":
       return jsonifyLocs({ ...node, type: transformNode(node.type) });
+    case "ScalarTypeDefinition":
+      return jsonifyLocs({
+        ...node,
+        description: node.description
+          ? transformNode(node.description)
+          : node.description,
+        name: transformNode(node.name),
+        directives: node.directives.map(transformNode),
+      });
     case "SchemaDefinition":
       return jsonifyLocs({
         ...node,

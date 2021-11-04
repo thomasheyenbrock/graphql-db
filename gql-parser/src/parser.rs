@@ -1516,9 +1516,35 @@ impl Parser<'_> {
     &mut self,
     description: Option<StringValue>,
   ) -> Result<Definition, SyntaxError> {
-    Err(SyntaxError {
-      message: String::from("TODO:"),
-      position: 999,
+    let name_token = self.next_token(None)?;
+
+    let name = self.parse_name()?;
+
+    let directives =
+      if self.peek_token(Some(TokenKind::CurlyBracketOpening))?.kind == TokenKind::AtSign {
+        self.parse_const_directives(TokenKind::CurlyBracketOpening)?
+      } else {
+        vec![]
+      };
+
+    let start_token = match description {
+      None => name_token,
+      Some(ref description) => description.loc.start_token.clone(),
+    };
+    let end_token = if directives.len() > 0 {
+      directives.last().unwrap().loc.end_token.clone()
+    } else {
+      name.loc.end_token.clone()
+    };
+
+    Ok(Definition::ScalarTypeDefinition {
+      description,
+      name,
+      directives,
+      loc: Loc {
+        start_token,
+        end_token,
+      },
     })
   }
 
