@@ -107,6 +107,12 @@ function transformNode(node) {
         directives: node.directives.map(transformNode),
         operationTypes: node.operationTypes.map(transformNode),
       });
+    case "SchemaExtension":
+      return jsonifyLocs({
+        ...node,
+        directives: node.directives.map(transformNode),
+        operationTypes: node.operationTypes.map(transformNode),
+      });
     case "SelectionSet":
       return jsonifyLocs({
         ...node,

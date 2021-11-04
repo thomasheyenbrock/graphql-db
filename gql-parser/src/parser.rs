@@ -1582,49 +1582,93 @@ impl Parser<'_> {
     })
   }
 
-  fn parse_schema_extension(&mut self) -> Result<Definition, SyntaxError> {
+  fn parse_schema_extension(&mut self, start_token: Token) -> Result<Definition, SyntaxError> {
+    self.next_token(None)?;
+
+    let directives =
+      if self.peek_token(Some(TokenKind::CurlyBracketOpening))?.kind == TokenKind::AtSign {
+        self.parse_const_directives(TokenKind::CurlyBracketOpening)?
+      } else {
+        vec![]
+      };
+
+    let mut end_token = None;
+
+    let operation_types =
+      if directives.len() == 0 || self.peek_token(None)?.kind == TokenKind::CurlyBracketOpening {
+        self.next_token(None)?;
+        let mut operation_type_definitions = vec![self.parse_operation_type_definition()?];
+        let mut next = self.peek_token(Some(TokenKind::Name))?;
+        while next.kind != TokenKind::CurlyBracketClosing {
+          operation_type_definitions.push(self.parse_operation_type_definition()?);
+          next = self.peek_token(Some(TokenKind::Name))?;
+        }
+        end_token = Some(self.next_token(Some(TokenKind::Name))?);
+        operation_type_definitions
+      } else {
+        vec![]
+      };
+
+    if end_token == None {
+      end_token = if operation_types.len() > 0 {
+        Some(operation_types.last().unwrap().loc.end_token.clone())
+      } else {
+        Some(directives.last().unwrap().loc.end_token.clone())
+      };
+    }
+
+    Ok(Definition::SchemaExtension {
+      directives,
+      operation_types,
+      loc: Loc {
+        start_token,
+        end_token: end_token.unwrap(),
+      },
+    })
+  }
+
+  fn parse_scalar_extension(&mut self, start_token: Token) -> Result<Definition, SyntaxError> {
     Err(SyntaxError {
       message: String::from("TODO:"),
       position: 999,
     })
   }
 
-  fn parse_scalar_extension(&mut self) -> Result<Definition, SyntaxError> {
+  fn parse_object_type_extension(&mut self, start_token: Token) -> Result<Definition, SyntaxError> {
     Err(SyntaxError {
       message: String::from("TODO:"),
       position: 999,
     })
   }
 
-  fn parse_object_type_extension(&mut self) -> Result<Definition, SyntaxError> {
+  fn parse_interface_type_extension(
+    &mut self,
+    start_token: Token,
+  ) -> Result<Definition, SyntaxError> {
     Err(SyntaxError {
       message: String::from("TODO:"),
       position: 999,
     })
   }
 
-  fn parse_interface_type_extension(&mut self) -> Result<Definition, SyntaxError> {
+  fn parse_union_type_extension(&mut self, start_token: Token) -> Result<Definition, SyntaxError> {
     Err(SyntaxError {
       message: String::from("TODO:"),
       position: 999,
     })
   }
 
-  fn parse_union_type_extension(&mut self) -> Result<Definition, SyntaxError> {
+  fn parse_enum_type_extension(&mut self, start_token: Token) -> Result<Definition, SyntaxError> {
     Err(SyntaxError {
       message: String::from("TODO:"),
       position: 999,
     })
   }
 
-  fn parse_enum_type_extension(&mut self) -> Result<Definition, SyntaxError> {
-    Err(SyntaxError {
-      message: String::from("TODO:"),
-      position: 999,
-    })
-  }
-
-  fn parse_input_object_type_extension(&mut self) -> Result<Definition, SyntaxError> {
+  fn parse_input_object_type_extension(
+    &mut self,
+    start_token: Token,
+  ) -> Result<Definition, SyntaxError> {
     Err(SyntaxError {
       message: String::from("TODO:"),
       position: 999,
@@ -1636,26 +1680,26 @@ impl Parser<'_> {
     let is_extension = peeked.kind == TokenKind::Name && peeked.value == "extend";
     if is_extension {
       // Skip the "extend" keyword
-      self.next_token(None)?;
+      let start_token = self.next_token(None)?;
 
       // An extension must be followed by a type keyworkd
       let peeked = self.peek_token(None)?;
       return match peeked.kind {
         TokenKind::Name => {
           if peeked.value == "schema" {
-            self.parse_schema_extension()
+            self.parse_schema_extension(start_token)
           } else if peeked.value == "scalar" {
-            self.parse_scalar_extension()
+            self.parse_scalar_extension(start_token)
           } else if peeked.value == "type" {
-            self.parse_object_type_extension()
+            self.parse_object_type_extension(start_token)
           } else if peeked.value == "interface" {
-            self.parse_interface_type_extension()
+            self.parse_interface_type_extension(start_token)
           } else if peeked.value == "union" {
-            self.parse_union_type_extension()
+            self.parse_union_type_extension(start_token)
           } else if peeked.value == "enum" {
-            self.parse_enum_type_extension()
+            self.parse_enum_type_extension(start_token)
           } else if peeked.value == "input" {
-            self.parse_input_object_type_extension()
+            self.parse_input_object_type_extension(start_token)
           } else {
             Err(SyntaxError {
               message: format!("Unexpected {}", peeked),

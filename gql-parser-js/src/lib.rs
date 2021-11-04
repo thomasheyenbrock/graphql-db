@@ -893,6 +893,35 @@ fn transform_definition<'a>(
       t_loc.set(cx, "end", end)?;
       obj.set(cx, "loc", t_loc)?;
     }
+    Definition::SchemaExtension {
+      directives,
+      operation_types,
+      loc,
+    } => {
+      let kind = cx.string("SchemaExtension");
+      obj.set(cx, "kind", kind)?;
+
+      let t_directives = cx.empty_array();
+      for (index, directive) in directives.iter().enumerate() {
+        let transformed_directive = transform_const_directive(cx, directive)?;
+        t_directives.set(cx, index as u32, transformed_directive)?;
+      }
+      obj.set(cx, "directives", t_directives)?;
+
+      let t_operation_types = cx.empty_array();
+      for (index, operation_type) in operation_types.iter().enumerate() {
+        let transformed_operation_type = transform_operation_type_definition(cx, operation_type)?;
+        t_operation_types.set(cx, index as u32, transformed_operation_type)?;
+      }
+      obj.set(cx, "operationTypes", t_operation_types)?;
+
+      let t_loc = cx.empty_object();
+      let start = cx.number(loc.start_token.start as u32);
+      t_loc.set(cx, "start", start)?;
+      let end = cx.number(loc.end_token.end as u32);
+      t_loc.set(cx, "end", end)?;
+      obj.set(cx, "loc", t_loc)?;
+    }
     _ => {} // TODO: remove this
   }
 
