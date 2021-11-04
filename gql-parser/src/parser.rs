@@ -1012,6 +1012,7 @@ impl Parser<'_> {
 
       let default_value =
         if self.peek_token(Some(TokenKind::DollarSign))?.kind == TokenKind::EqualsSign {
+          self.next_token(Some(TokenKind::DollarSign))?;
           Some(self.parse_const_value()?)
         } else {
           None
