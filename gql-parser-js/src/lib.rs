@@ -19,6 +19,100 @@ fn transform_name<'a>(cx: &mut CallContext<'a, JsObject>, name: &Name) -> JsResu
   Ok(obj)
 }
 
+fn transform_named_type<'a>(
+  cx: &mut CallContext<'a, JsObject>,
+  named_type: &NamedType,
+) -> JsResult<'a, JsObject> {
+  let obj = cx.empty_object();
+  let kind = cx.string("NamedType");
+  obj.set(cx, "kind", kind)?;
+
+  let name = transform_name(cx, &named_type.name)?;
+  obj.set(cx, "name", name)?;
+
+  let loc = cx.empty_object();
+  let start = cx.number(named_type.loc.start_token.start as u32);
+  loc.set(cx, "start", start)?;
+  let end = cx.number(named_type.loc.end_token.end as u32);
+  loc.set(cx, "end", end)?;
+  obj.set(cx, "loc", loc)?;
+
+  Ok(obj)
+}
+
+fn transform_type<'a>(
+  cx: &mut CallContext<'a, JsObject>,
+  gql_type: &Type,
+) -> JsResult<'a, JsObject> {
+  match gql_type {
+    Type::NamedType(named_type) => transform_named_type(cx, named_type),
+    _ => Ok(cx.empty_object()), // TODO: remove this
+  }
+}
+
+fn transform_variable<'a>(
+  cx: &mut CallContext<'a, JsObject>,
+  variable: &Variable,
+) -> JsResult<'a, JsObject> {
+  let obj = cx.empty_object();
+  let kind = cx.string("Variable");
+  obj.set(cx, "kind", kind)?;
+
+  let name = transform_name(cx, &variable.name)?;
+  obj.set(cx, "name", name)?;
+
+  let loc = cx.empty_object();
+  let start = cx.number(variable.loc.start_token.start as u32);
+  loc.set(cx, "start", start)?;
+  let end = cx.number(variable.loc.end_token.end as u32);
+  loc.set(cx, "end", end)?;
+  obj.set(cx, "loc", loc)?;
+
+  Ok(obj)
+}
+
+fn transform_int_value<'a>(
+  cx: &mut CallContext<'a, JsObject>,
+  int_value: &gql_parser::IntValue,
+) -> JsResult<'a, JsObject> {
+  let obj = cx.empty_object();
+  let kind = cx.string("IntValue");
+  obj.set(cx, "kind", kind)?;
+
+  let value = cx.string(int_value.value.clone());
+  obj.set(cx, "value", value)?;
+
+  let loc = cx.empty_object();
+  let start = cx.number(int_value.loc.start_token.start as u32);
+  loc.set(cx, "start", start)?;
+  let end = cx.number(int_value.loc.end_token.end as u32);
+  loc.set(cx, "end", end)?;
+  obj.set(cx, "loc", loc)?;
+
+  Ok(obj)
+}
+
+fn transform_float_value<'a>(
+  cx: &mut CallContext<'a, JsObject>,
+  float_value: &gql_parser::FloatValue,
+) -> JsResult<'a, JsObject> {
+  let obj = cx.empty_object();
+  let kind = cx.string("FloatValue");
+  obj.set(cx, "kind", kind)?;
+
+  let value = cx.string(float_value.value.clone());
+  obj.set(cx, "value", value)?;
+
+  let loc = cx.empty_object();
+  let start = cx.number(float_value.loc.start_token.start as u32);
+  loc.set(cx, "start", start)?;
+  let end = cx.number(float_value.loc.end_token.end as u32);
+  loc.set(cx, "end", end)?;
+  obj.set(cx, "loc", loc)?;
+
+  Ok(obj)
+}
+
 fn transform_string_value<'a>(
   cx: &mut CallContext<'a, JsObject>,
   string_value: &gql_parser::StringValue,
@@ -43,13 +137,163 @@ fn transform_string_value<'a>(
   Ok(obj)
 }
 
+fn transform_boolean_value<'a>(
+  cx: &mut CallContext<'a, JsObject>,
+  boolean_value: &gql_parser::BooleanValue,
+) -> JsResult<'a, JsObject> {
+  let obj = cx.empty_object();
+  let kind = cx.string("BooleanValue");
+  obj.set(cx, "kind", kind)?;
+
+  let value = cx.boolean(boolean_value.value);
+  obj.set(cx, "value", value)?;
+
+  let loc = cx.empty_object();
+  let start = cx.number(boolean_value.loc.start_token.start as u32);
+  loc.set(cx, "start", start)?;
+  let end = cx.number(boolean_value.loc.end_token.end as u32);
+  loc.set(cx, "end", end)?;
+  obj.set(cx, "loc", loc)?;
+
+  Ok(obj)
+}
+
+fn transform_null_value<'a>(
+  cx: &mut CallContext<'a, JsObject>,
+  null_value: &gql_parser::NullValue,
+) -> JsResult<'a, JsObject> {
+  let obj = cx.empty_object();
+  let kind = cx.string("NullValue");
+  obj.set(cx, "kind", kind)?;
+
+  let loc = cx.empty_object();
+  let start = cx.number(null_value.loc.start_token.start as u32);
+  loc.set(cx, "start", start)?;
+  let end = cx.number(null_value.loc.end_token.end as u32);
+  loc.set(cx, "end", end)?;
+  obj.set(cx, "loc", loc)?;
+
+  Ok(obj)
+}
+
+fn transform_enum_value<'a>(
+  cx: &mut CallContext<'a, JsObject>,
+  enum_value: &gql_parser::EnumValue,
+) -> JsResult<'a, JsObject> {
+  let obj = cx.empty_object();
+  let kind = cx.string("EnumValue");
+  obj.set(cx, "kind", kind)?;
+
+  let value = cx.string(enum_value.value.clone());
+  obj.set(cx, "value", value)?;
+
+  let loc = cx.empty_object();
+  let start = cx.number(enum_value.loc.start_token.start as u32);
+  loc.set(cx, "start", start)?;
+  let end = cx.number(enum_value.loc.end_token.end as u32);
+  loc.set(cx, "end", end)?;
+  obj.set(cx, "loc", loc)?;
+
+  Ok(obj)
+}
+
+fn transform_list_value<'a>(
+  cx: &mut CallContext<'a, JsObject>,
+  list_value: &gql_parser::ListValue,
+) -> JsResult<'a, JsObject> {
+  let obj = cx.empty_object();
+  let kind = cx.string("ListValue");
+  obj.set(cx, "kind", kind)?;
+
+  let values = cx.empty_array();
+  for (index, value) in list_value.values.iter().enumerate() {
+    let transformed_value = transform_value(cx, value)?;
+    values.set(cx, index as u32, transformed_value)?;
+  }
+  obj.set(cx, "values", values)?;
+
+  let loc = cx.empty_object();
+  let start = cx.number(list_value.loc.start_token.start as u32);
+  loc.set(cx, "start", start)?;
+  let end = cx.number(list_value.loc.end_token.end as u32);
+  loc.set(cx, "end", end)?;
+  obj.set(cx, "loc", loc)?;
+
+  Ok(obj)
+}
+
+fn transform_object_field<'a>(
+  cx: &mut CallContext<'a, JsObject>,
+  object_field: &gql_parser::ObjectField,
+) -> JsResult<'a, JsObject> {
+  let obj = cx.empty_object();
+  let kind = cx.string("ObjectField");
+  obj.set(cx, "kind", kind)?;
+
+  let name = transform_name(cx, &object_field.name)?;
+  obj.set(cx, "name", name)?;
+
+  let value = transform_value(cx, &object_field.value)?;
+  obj.set(cx, "value", value)?;
+
+  let loc = cx.empty_object();
+  let start = cx.number(object_field.loc.start_token.start as u32);
+  loc.set(cx, "start", start)?;
+  let end = cx.number(object_field.loc.end_token.end as u32);
+  loc.set(cx, "end", end)?;
+  obj.set(cx, "loc", loc)?;
+
+  Ok(obj)
+}
+
+fn transform_object_value<'a>(
+  cx: &mut CallContext<'a, JsObject>,
+  object_value: &gql_parser::ObjectValue,
+) -> JsResult<'a, JsObject> {
+  let obj = cx.empty_object();
+  let kind = cx.string("ObjectValue");
+  obj.set(cx, "kind", kind)?;
+
+  let fields = cx.empty_array();
+  for (index, object_field) in object_value.fields.iter().enumerate() {
+    let transformed_field = transform_object_field(cx, object_field)?;
+    fields.set(cx, index as u32, transformed_field)?;
+  }
+  obj.set(cx, "fields", fields)?;
+
+  let loc = cx.empty_object();
+  let start = cx.number(object_value.loc.start_token.start as u32);
+  loc.set(cx, "start", start)?;
+  let end = cx.number(object_value.loc.end_token.end as u32);
+  loc.set(cx, "end", end)?;
+  obj.set(cx, "loc", loc)?;
+
+  Ok(obj)
+}
+
 fn transform_value<'a>(
   cx: &mut CallContext<'a, JsObject>,
   value: &gql_parser::Value,
 ) -> JsResult<'a, JsObject> {
   match value {
+    gql_parser::Value::Variable(variable) => transform_variable(cx, variable),
+    gql_parser::Value::IntValue(int_value) => transform_int_value(cx, int_value),
+    gql_parser::Value::FloatValue(float_value) => transform_float_value(cx, float_value),
     gql_parser::Value::StringValue(string_value) => transform_string_value(cx, string_value),
-    _ => Ok(cx.empty_object()),
+    gql_parser::Value::BooleanValue(boolean_value) => transform_boolean_value(cx, boolean_value),
+    gql_parser::Value::NullValue(null_value) => transform_null_value(cx, null_value),
+    gql_parser::Value::EnumValue(enum_value) => transform_enum_value(cx, enum_value),
+    gql_parser::Value::ListValue(list_value) => transform_list_value(cx, list_value),
+    gql_parser::Value::ObjectValue(object_value) => transform_object_value(cx, object_value),
+  }
+}
+
+fn transform_const_value<'a>(
+  cx: &mut CallContext<'a, JsObject>,
+  value: &gql_parser::ConstValue,
+) -> JsResult<'a, JsObject> {
+  match value {
+    _ => Ok(cx.empty_object()), // TODO: remove this
   }
 }
 
@@ -82,6 +326,39 @@ fn transform_variable_definition<'a>(
   variable_definition: &VariableDefinition,
 ) -> JsResult<'a, JsObject> {
   let obj = cx.empty_object();
+  let kind = cx.string("VariableDefinition");
+  obj.set(cx, "kind", kind)?;
+
+  let variable = transform_variable(cx, &variable_definition.variable)?;
+  obj.set(cx, "variable", variable)?;
+
+  let gql_type = transform_type(cx, &variable_definition.gql_type)?;
+  obj.set(cx, "type", gql_type)?;
+
+  match &variable_definition.default_value {
+    None => {
+      let default_value = cx.undefined();
+      obj.set(cx, "defaultValue", default_value)?;
+    }
+    Some(default_value) => {
+      let transformed_default_value = transform_const_value(cx, default_value)?;
+      obj.set(cx, "defaultValue", transformed_default_value)?;
+    }
+  }
+
+  let directives = cx.empty_array();
+  for (index, argument) in variable_definition.directives.iter().enumerate() {
+    let transformed_directive = transform_directive(cx, argument)?;
+    directives.set(cx, index as u32, transformed_directive)?;
+  }
+  obj.set(cx, "directives", directives)?;
+
+  let loc = cx.empty_object();
+  let start = cx.number(variable_definition.loc.start_token.start as u32);
+  loc.set(cx, "start", start)?;
+  let end = cx.number(variable_definition.loc.end_token.end as u32);
+  loc.set(cx, "end", end)?;
+  obj.set(cx, "loc", loc)?;
 
   Ok(obj)
 }
@@ -91,6 +368,25 @@ fn transform_directive<'a>(
   directive: &Directive,
 ) -> JsResult<'a, JsObject> {
   let obj = cx.empty_object();
+  let kind = cx.string("Directive");
+  obj.set(cx, "kind", kind)?;
+
+  let name = transform_name(cx, &directive.name)?;
+  obj.set(cx, "name", name)?;
+
+  let arguments = cx.empty_array();
+  for (index, argument) in directive.arguments.iter().enumerate() {
+    let transformed_argument = transform_argument(cx, argument)?;
+    arguments.set(cx, index as u32, transformed_argument)?;
+  }
+  obj.set(cx, "arguments", arguments)?;
+
+  let loc = cx.empty_object();
+  let start = cx.number(directive.loc.start_token.start as u32);
+  loc.set(cx, "start", start)?;
+  let end = cx.number(directive.loc.end_token.end as u32);
+  loc.set(cx, "end", end)?;
+  obj.set(cx, "loc", loc)?;
 
   Ok(obj)
 }
@@ -159,7 +455,7 @@ fn transform_selection<'a>(
       t_loc.set(cx, "end", end)?;
       obj.set(cx, "loc", t_loc)?;
     }
-    _ => {}
+    _ => {} // TODO: remove this
   }
 
   Ok(obj)
@@ -247,7 +543,7 @@ fn transform_definition<'a>(
       t_loc.set(cx, "end", end)?;
       obj.set(cx, "loc", t_loc)?;
     }
-    _ => {}
+    _ => {} // TODO: remove this
   }
 
   Ok(obj)
