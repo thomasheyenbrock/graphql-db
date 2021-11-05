@@ -1840,25 +1840,20 @@ impl Parser<'_> {
 
     let name = self.parse_name()?;
 
-    let maybe_directives = if self.peek_token(None)?.kind == TokenKind::AtSign {
-      self.parse_const_directives(None)?
-    } else {
-      vec![]
-    };
+    let directives = self.parse_const_directives(None)?;
 
-    if maybe_directives.len() == 0 {
+    if directives.len() == 0 {
       return Err(SyntaxError {
         message: format!(""),
         position: self.lexer.get_position(),
       });
     }
-    let directives = Vec1::try_from_vec(maybe_directives).unwrap();
 
-    let end_token = directives.last().loc.end_token.clone();
+    let end_token = directives.last().unwrap().loc.end_token.clone();
 
     Ok(Definition::ScalarTypeExtension {
       name,
-      directives,
+      directives: Vec1::try_from_vec(directives).unwrap(),
       loc: Loc {
         start_token,
         end_token,
