@@ -207,6 +207,13 @@ function transformNode(node) {
         directives: node.directives.map(transformNode),
         types: node.types.map(transformNode),
       });
+    case "UnionTypeExtension":
+      return jsonifyLocs({
+        ...node,
+        name: transformNode(node.name),
+        directives: node.directives.map(transformNode),
+        types: node.types.map(transformNode),
+      });
     case "Variable":
       return jsonifyLocs({ ...node, name: transformNode(node.name) });
     case "VariableDefinition":
