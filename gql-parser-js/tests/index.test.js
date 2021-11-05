@@ -103,6 +103,14 @@ function transformNode(node) {
         directives: node.directives.map(transformNode),
         fields: node.fields.map(transformNode),
       });
+    case "InterfaceTypeExtension":
+      return jsonifyLocs({
+        ...node,
+        name: transformNode(node.name),
+        interfaces: node.interfaces.map(transformNode),
+        directives: node.directives.map(transformNode),
+        fields: node.fields.map(transformNode),
+      });
     case "ListType":
       return jsonifyLocs({ ...node, type: transformNode(node.type) });
     case "ListValue":

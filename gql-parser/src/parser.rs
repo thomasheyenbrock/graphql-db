@@ -1932,9 +1932,33 @@ impl Parser<'_> {
     &mut self,
     start_token: Token,
   ) -> Result<Definition, SyntaxError> {
-    Err(SyntaxError {
-      message: String::from("TODO:"),
-      position: 999,
+    self.parse_token(TokenKind::Name)?;
+
+    let name = self.parse_name()?;
+
+    let interfaces = self.parse_implements_interface()?;
+
+    let directives = self.parse_const_directives(None)?;
+
+    let (fields, curly_bracket_closing_token) = self.parse_field_definitions()?;
+
+    let end_token = if curly_bracket_closing_token != None {
+      curly_bracket_closing_token.unwrap()
+    } else if directives.len() > 0 {
+      directives.last().unwrap().loc.end_token.clone()
+    } else {
+      interfaces.last().unwrap().loc.end_token.clone()
+    };
+
+    Ok(Definition::InterfaceTypeExtension {
+      name,
+      interfaces,
+      directives,
+      fields,
+      loc: Loc {
+        start_token,
+        end_token,
+      },
     })
   }
 
