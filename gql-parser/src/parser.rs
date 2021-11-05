@@ -1132,6 +1132,157 @@ impl Parser<'_> {
     Ok(variable_definitions)
   }
 
+  fn parse_implements_interface(&mut self) -> Result<Vec<NamedType>, SyntaxError> {
+    let peeked = self.peek_token(None)?;
+    if !(peeked.kind == TokenKind::Name && peeked.value == "implements") {
+      return Ok(vec![]);
+    }
+
+    self.parse_token(TokenKind::Name)?;
+    if self.peek_token(Some(TokenKind::Name))?.kind == TokenKind::Ampersand {
+      self.parse_token(TokenKind::Ampersand)?;
+    }
+    let mut interfaces = vec![self.parse_named_type()?];
+
+    while self.peek_token(None)?.kind == TokenKind::Ampersand {
+      self.parse_token(TokenKind::Ampersand)?;
+      interfaces.push(self.parse_named_type()?);
+    }
+
+    Ok(interfaces)
+  }
+
+  fn parse_arguments_definition(&mut self) -> Result<Vec<InputValueDefinition>, SyntaxError> {
+    if self.peek_token(None)?.kind != TokenKind::RoundBracketOpening {
+      return Ok(vec![]);
+    }
+
+    self.parse_token(TokenKind::RoundBracketOpening)?;
+
+    let mut argument_definitions = vec![];
+    let mut peeked = self.peek_token(Some(TokenKind::Name))?;
+    while peeked.kind != TokenKind::RoundBracketClosing {
+      let description = if peeked.kind.equals(TokenKind::String { block: false }) {
+        Some(self.parse_string_value()?)
+      } else {
+        None
+      };
+
+      let name = self.parse_name()?;
+
+      self.parse_token(TokenKind::Colon)?;
+
+      let gql_type = self.parse_type()?;
+
+      let default_value = if self.peek_token(Some(TokenKind::Name))?.kind == TokenKind::EqualsSign {
+        self.parse_token(TokenKind::EqualsSign)?;
+        Some(self.parse_const_value()?)
+      } else {
+        None
+      };
+
+      let directives = self.parse_const_directives(Some(TokenKind::Name))?;
+
+      let start_token = if description != None {
+        description.as_ref().unwrap().loc.start_token.clone()
+      } else {
+        name.loc.start_token.clone()
+      };
+      let end_token = if directives.len() > 0 {
+        directives.last().unwrap().loc.end_token.clone()
+      } else if default_value != None {
+        default_value.as_ref().unwrap().get_end_token()
+      } else {
+        gql_type.get_end_token()
+      };
+
+      argument_definitions.push(InputValueDefinition {
+        description,
+        name,
+        gql_type,
+        default_value,
+        directives,
+        loc: Loc {
+          start_token,
+          end_token,
+        },
+      });
+      peeked = self.peek_token(Some(TokenKind::Name))?;
+    }
+
+    self.parse_token(TokenKind::RoundBracketClosing)?;
+
+    Ok(argument_definitions)
+  }
+
+  fn parse_field_definitions(
+    &mut self,
+  ) -> Result<(Vec<FieldDefinition>, Option<Token>), SyntaxError> {
+    if self.peek_token(None)?.kind != TokenKind::CurlyBracketOpening {
+      return Ok((vec![], None));
+    }
+
+    self.parse_token(TokenKind::CurlyBracketOpening)?;
+
+    let mut field_definitions = vec![];
+    let mut peeked = self.peek_token(Some(TokenKind::Name))?;
+    while peeked.kind != TokenKind::CurlyBracketClosing {
+      let description = if peeked.kind.equals(TokenKind::String { block: false }) {
+        Some(self.parse_string_value()?)
+      } else {
+        None
+      };
+
+      let name = self.parse_name()?;
+
+      let arguments = self.parse_arguments_definition()?;
+
+      self.parse_token(TokenKind::Colon)?;
+
+      let gql_type = self.parse_type()?;
+
+      let directives = self.parse_const_directives(None)?;
+
+      let start_token = if description != None {
+        description.as_ref().unwrap().loc.start_token.clone()
+      } else {
+        name.loc.start_token.clone()
+      };
+      let end_token = if directives.len() > 0 {
+        directives.last().unwrap().loc.end_token.clone()
+      } else {
+        gql_type.get_end_token()
+      };
+
+      field_definitions.push(FieldDefinition {
+        description,
+        name,
+        arguments,
+        gql_type,
+        directives,
+        loc: Loc {
+          start_token,
+          end_token,
+        },
+      });
+      peeked = self.peek_token(Some(TokenKind::Name))?;
+    }
+
+    if field_definitions.len() == 0 {
+      return Err(SyntaxError {
+        message: format!(
+          "Expected Name, found {}.",
+          self.peek_token(Some(TokenKind::Name))?.kind
+        ),
+        position: self.lexer.get_position(),
+      });
+    }
+
+    let curly_bracket_closing_token = self.parse_token(TokenKind::CurlyBracketClosing)?;
+
+    Ok((field_definitions, Some(curly_bracket_closing_token)))
+  }
+
   fn parse_selection(&mut self) -> Result<Selection, SyntaxError> {
     let peeked = self.peek_token(Some(TokenKind::Name))?;
     match peeked.kind {
@@ -1547,9 +1698,45 @@ impl Parser<'_> {
     &mut self,
     description: Option<StringValue>,
   ) -> Result<Definition, SyntaxError> {
-    Err(SyntaxError {
-      message: String::from("TODO:"),
-      position: 999,
+    let name_token = self.parse_token(TokenKind::Name)?;
+
+    let name = self.parse_name()?;
+
+    let interfaces = self.parse_implements_interface()?;
+
+    let directives =
+      if self.peek_token(Some(TokenKind::CurlyBracketOpening))?.kind == TokenKind::AtSign {
+        self.parse_const_directives(Some(TokenKind::CurlyBracketOpening))?
+      } else {
+        vec![]
+      };
+
+    let (fields, curly_bracket_closing_token) = self.parse_field_definitions()?;
+
+    let start_token = match description {
+      None => name_token,
+      Some(ref description) => description.loc.start_token.clone(),
+    };
+    let end_token = if curly_bracket_closing_token != None {
+      curly_bracket_closing_token.unwrap()
+    } else if directives.len() > 0 {
+      directives.last().unwrap().loc.end_token.clone()
+    } else if interfaces.len() > 0 {
+      interfaces.last().unwrap().loc.end_token.clone()
+    } else {
+      name.loc.end_token.clone()
+    };
+
+    Ok(Definition::ObjectTypeDefinition {
+      description,
+      name,
+      interfaces,
+      directives,
+      fields,
+      loc: Loc {
+        start_token,
+        end_token,
+      },
     })
   }
 

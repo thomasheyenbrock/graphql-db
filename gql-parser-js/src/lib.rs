@@ -762,6 +762,108 @@ fn transform_operation_type_definition<'a>(
   Ok(obj)
 }
 
+fn transform_input_value_definition<'a>(
+  cx: &mut CallContext<'a, JsObject>,
+  input_value_definition: &InputValueDefinition,
+) -> JsResult<'a, JsObject> {
+  let obj = cx.empty_object();
+  let kind = cx.string("InputValueDefinition");
+  obj.set(cx, "kind", kind)?;
+
+  match &input_value_definition.description {
+    None => {
+      let t_description = cx.undefined();
+      obj.set(cx, "description", t_description)?;
+    }
+    Some(description) => {
+      let t_description = transform_string_value(cx, &description)?;
+      obj.set(cx, "description", t_description)?;
+    }
+  };
+
+  let name = transform_name(cx, &input_value_definition.name)?;
+  obj.set(cx, "type", name)?;
+
+  let gql_type = transform_type(cx, &input_value_definition.gql_type)?;
+  obj.set(cx, "type", gql_type)?;
+
+  match &input_value_definition.default_value {
+    None => {
+      let default_value = cx.undefined();
+      obj.set(cx, "defaultValue", default_value)?;
+    }
+    Some(default_value) => {
+      let transformed_default_value = transform_const_value(cx, default_value)?;
+      obj.set(cx, "defaultValue", transformed_default_value)?;
+    }
+  }
+
+  let directives = cx.empty_array();
+  for (index, directive) in input_value_definition.directives.iter().enumerate() {
+    let transformed_directive = transform_const_directive(cx, directive)?;
+    directives.set(cx, index as u32, transformed_directive)?;
+  }
+  obj.set(cx, "directives", directives)?;
+
+  let loc = cx.empty_object();
+  let start = cx.number(input_value_definition.loc.start_token.start as u32);
+  loc.set(cx, "start", start)?;
+  let end = cx.number(input_value_definition.loc.end_token.end as u32);
+  loc.set(cx, "end", end)?;
+  obj.set(cx, "loc", loc)?;
+  Ok(obj)
+}
+
+fn transform_field_definition<'a>(
+  cx: &mut CallContext<'a, JsObject>,
+  field_definition: &FieldDefinition,
+) -> JsResult<'a, JsObject> {
+  let obj = cx.empty_object();
+  let kind = cx.string("FieldDefinition");
+  obj.set(cx, "kind", kind)?;
+
+  match &field_definition.description {
+    None => {
+      let t_description = cx.undefined();
+      obj.set(cx, "description", t_description)?;
+    }
+    Some(description) => {
+      let t_description = transform_string_value(cx, &description)?;
+      obj.set(cx, "description", t_description)?;
+    }
+  };
+
+  let t_name = transform_name(cx, &field_definition.name)?;
+  obj.set(cx, "name", t_name)?;
+
+  let arguments = cx.empty_array();
+  for (index, input_value_definition) in field_definition.arguments.iter().enumerate() {
+    let transformed_input_value_definition =
+      transform_input_value_definition(cx, input_value_definition)?;
+    arguments.set(cx, index as u32, transformed_input_value_definition)?;
+  }
+  obj.set(cx, "arguments", arguments)?;
+
+  let gql_type = transform_type(cx, &field_definition.gql_type)?;
+  obj.set(cx, "type", gql_type)?;
+
+  let directives = cx.empty_array();
+  for (index, directive) in field_definition.directives.iter().enumerate() {
+    let transformed_directive = transform_const_directive(cx, directive)?;
+    directives.set(cx, index as u32, transformed_directive)?;
+  }
+  obj.set(cx, "directives", directives)?;
+
+  let loc = cx.empty_object();
+  let start = cx.number(field_definition.loc.start_token.start as u32);
+  loc.set(cx, "start", start)?;
+  let end = cx.number(field_definition.loc.end_token.end as u32);
+  loc.set(cx, "end", end)?;
+  obj.set(cx, "loc", loc)?;
+
+  Ok(obj)
+}
+
 fn transform_definition<'a>(
   cx: &mut CallContext<'a, JsObject>,
   definition: &Definition,
@@ -922,6 +1024,59 @@ fn transform_definition<'a>(
         t_directives.set(cx, index as u32, transformed_directive)?;
       }
       obj.set(cx, "directives", t_directives)?;
+
+      let t_loc = cx.empty_object();
+      let start = cx.number(loc.start_token.start as u32);
+      t_loc.set(cx, "start", start)?;
+      let end = cx.number(loc.end_token.end as u32);
+      t_loc.set(cx, "end", end)?;
+      obj.set(cx, "loc", t_loc)?;
+    }
+    Definition::ObjectTypeDefinition {
+      description,
+      name,
+      interfaces,
+      directives,
+      fields,
+      loc,
+    } => {
+      let kind = cx.string("ObjectTypeDefinition");
+      obj.set(cx, "kind", kind)?;
+
+      match description {
+        None => {
+          let t_description = cx.undefined();
+          obj.set(cx, "description", t_description)?;
+        }
+        Some(description) => {
+          let t_description = transform_string_value(cx, description)?;
+          obj.set(cx, "description", t_description)?;
+        }
+      };
+
+      let t_name = transform_name(cx, name)?;
+      obj.set(cx, "name", t_name)?;
+
+      let t_interfaces = cx.empty_array();
+      for (index, interface) in interfaces.iter().enumerate() {
+        let transformed_interface = transform_named_type(cx, interface)?;
+        t_interfaces.set(cx, index as u32, transformed_interface)?;
+      }
+      obj.set(cx, "interfaces", t_interfaces)?;
+
+      let t_directives = cx.empty_array();
+      for (index, directive) in directives.iter().enumerate() {
+        let transformed_directive = transform_const_directive(cx, directive)?;
+        t_directives.set(cx, index as u32, transformed_directive)?;
+      }
+      obj.set(cx, "directives", t_directives)?;
+
+      let t_fields = cx.empty_array();
+      for (index, field) in fields.iter().enumerate() {
+        let transformed_field = transform_field_definition(cx, field)?;
+        t_fields.set(cx, index as u32, transformed_field)?;
+      }
+      obj.set(cx, "fields", t_fields)?;
 
       let t_loc = cx.empty_object();
       let start = cx.number(loc.start_token.start as u32);

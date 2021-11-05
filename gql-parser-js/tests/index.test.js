@@ -41,6 +41,17 @@ function transformNode(node) {
           ? transformNode(node.selectionSet)
           : node.selectionSet,
       });
+    case "FieldDefinition":
+      return jsonifyLocs({
+        ...node,
+        description: node.description
+          ? transformNode(node.description)
+          : node.description,
+        name: transformNode(node.name),
+        arguments: node.arguments.map(transformNode),
+        type: transformNode(node.type),
+        directives: node.directives.map(transformNode),
+      });
     case "FloatValue":
       return jsonifyLocs(node);
     case "FragmentDefinition":
@@ -85,6 +96,18 @@ function transformNode(node) {
         ...node,
         name: transformNode(node.name),
         value: transformNode(node.value),
+      });
+    case "ObjectTypeDefinition":
+      return jsonifyLocs({
+        ...node,
+
+        description: node.description
+          ? transformNode(node.description)
+          : node.description,
+        name: transformNode(node.name),
+        interfaces: node.interfaces.map(transformNode),
+        directives: node.directives.map(transformNode),
+        fields: node.fields.map(transformNode),
       });
     case "ObjectValue":
       return jsonifyLocs({ ...node, fields: node.fields.map(transformNode) });
