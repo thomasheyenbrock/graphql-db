@@ -1138,6 +1138,51 @@ fn transform_definition<'a>(
       t_loc.set(cx, "end", end)?;
       obj.set(cx, "loc", t_loc)?;
     }
+    Definition::UnionTypeDefinition {
+      description,
+      name,
+      directives,
+      types,
+      loc,
+    } => {
+      let kind = cx.string("UnionTypeDefinition");
+      obj.set(cx, "kind", kind)?;
+
+      match description {
+        None => {
+          let t_description = cx.undefined();
+          obj.set(cx, "description", t_description)?;
+        }
+        Some(description) => {
+          let t_description = transform_string_value(cx, description)?;
+          obj.set(cx, "description", t_description)?;
+        }
+      };
+
+      let t_name = transform_name(cx, name)?;
+      obj.set(cx, "name", t_name)?;
+
+      let t_directives = cx.empty_array();
+      for (index, directive) in directives.iter().enumerate() {
+        let transformed_directive = transform_const_directive(cx, directive)?;
+        t_directives.set(cx, index as u32, transformed_directive)?;
+      }
+      obj.set(cx, "directives", t_directives)?;
+
+      let t_types = cx.empty_array();
+      for (index, gql_type) in types.iter().enumerate() {
+        let transformed_type = transform_named_type(cx, gql_type)?;
+        t_types.set(cx, index as u32, transformed_type)?;
+      }
+      obj.set(cx, "types", t_types)?;
+
+      let t_loc = cx.empty_object();
+      let start = cx.number(loc.start_token.start as u32);
+      t_loc.set(cx, "start", start)?;
+      let end = cx.number(loc.end_token.end as u32);
+      t_loc.set(cx, "end", end)?;
+      obj.set(cx, "loc", t_loc)?;
+    }
     Definition::SchemaExtension {
       directives,
       operation_types,

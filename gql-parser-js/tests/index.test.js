@@ -197,6 +197,16 @@ function transformNode(node) {
       });
     case "StringValue":
       return jsonifyLocs(node);
+    case "UnionTypeDefinition":
+      return jsonifyLocs({
+        ...node,
+        description: node.description
+          ? transformNode(node.description)
+          : node.description,
+        name: transformNode(node.name),
+        directives: node.directives.map(transformNode),
+        types: node.types.map(transformNode),
+      });
     case "Variable":
       return jsonifyLocs({ ...node, name: transformNode(node.name) });
     case "VariableDefinition":
