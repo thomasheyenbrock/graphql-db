@@ -774,7 +774,7 @@ impl Parser<'_> {
         position: self.lexer.get_position(),
       });
     }
-    let end_token = self.next_token(Some(TokenKind::Name))?;
+    let end_token = self.parse_token(TokenKind::CurlyBracketClosing)?;
 
     Ok(ObjectValue {
       fields,
@@ -865,7 +865,7 @@ impl Parser<'_> {
         position: self.lexer.get_position(),
       });
     }
-    let end_token = self.next_token(Some(TokenKind::Name))?;
+    let end_token = self.parse_token(TokenKind::CurlyBracketClosing)?;
 
     Ok(ConstObjectValue {
       fields,
@@ -1084,7 +1084,7 @@ impl Parser<'_> {
 
       let default_value =
         if self.peek_token(Some(TokenKind::DollarSign))?.kind == TokenKind::EqualsSign {
-          self.next_token(Some(TokenKind::DollarSign))?;
+          self.parse_token(TokenKind::EqualsSign)?;
           Some(self.parse_const_value()?)
         } else {
           None
@@ -1318,7 +1318,7 @@ impl Parser<'_> {
   }
 
   fn parse_operation_type_definition(&mut self) -> Result<OperationTypeDefinition, SyntaxError> {
-    let start_token = self.next_token(Some(TokenKind::Name))?;
+    let start_token = self.parse_token(TokenKind::Name)?;
 
     let operation = if start_token.value == "query" {
       OperationType::query
@@ -1333,7 +1333,7 @@ impl Parser<'_> {
       });
     };
 
-    self.next_token(Some(TokenKind::Colon))?;
+    self.parse_token(TokenKind::Colon)?;
 
     let gql_type = self.parse_named_type()?;
 
@@ -1371,7 +1371,7 @@ impl Parser<'_> {
         })
       }
       TokenKind::Name => {
-        let start_token = self.next_token(None)?;
+        let start_token = self.parse_token(TokenKind::Name)?;
         let operation = if start_token.value == "query" {
           OperationType::query
         } else if start_token.value == "mutation" {
@@ -1430,7 +1430,7 @@ impl Parser<'_> {
   }
 
   fn parse_fragment_definition(&mut self) -> Result<Definition, SyntaxError> {
-    let start_token = self.next_token(None)?;
+    let start_token = self.parse_token(TokenKind::Name)?;
 
     let name = self.parse_name()?;
 
@@ -1481,7 +1481,7 @@ impl Parser<'_> {
     &mut self,
     description: Option<StringValue>,
   ) -> Result<Definition, SyntaxError> {
-    let name_token = self.next_token(None)?;
+    let schema = self.parse_token(TokenKind::Name)?;
 
     let directives =
       if self.peek_token(Some(TokenKind::CurlyBracketOpening))?.kind == TokenKind::AtSign {
@@ -1490,7 +1490,7 @@ impl Parser<'_> {
         vec![]
       };
 
-    self.next_token(Some(TokenKind::CurlyBracketOpening))?;
+    self.parse_token(TokenKind::CurlyBracketOpening)?;
 
     let mut operation_types = vec1![self.parse_operation_type_definition()?];
     let mut next = self.peek_token(Some(TokenKind::Name))?;
@@ -1500,10 +1500,10 @@ impl Parser<'_> {
     }
 
     let start_token = match description {
-      None => name_token,
+      None => schema,
       Some(ref description) => description.loc.start_token.clone(),
     };
-    let end_token = self.next_token(Some(TokenKind::CurlyBracketOpening))?;
+    let end_token = self.parse_token(TokenKind::CurlyBracketClosing)?;
 
     Ok(Definition::SchemaDefinition {
       description,
@@ -1520,7 +1520,7 @@ impl Parser<'_> {
     &mut self,
     description: Option<StringValue>,
   ) -> Result<Definition, SyntaxError> {
-    let name_token = self.next_token(None)?;
+    let scalar = self.parse_token(TokenKind::Name)?;
 
     let name = self.parse_name()?;
 
@@ -1532,7 +1532,7 @@ impl Parser<'_> {
       };
 
     let start_token = match description {
-      None => name_token,
+      None => scalar,
       Some(ref description) => description.loc.start_token.clone(),
     };
     let end_token = if directives.len() > 0 {
@@ -1613,7 +1613,7 @@ impl Parser<'_> {
   }
 
   fn parse_schema_extension(&mut self, start_token: Token) -> Result<Definition, SyntaxError> {
-    self.next_token(None)?;
+    self.parse_token(TokenKind::Name)?;
 
     let directives =
       if self.peek_token(Some(TokenKind::CurlyBracketOpening))?.kind == TokenKind::AtSign {
@@ -1633,7 +1633,7 @@ impl Parser<'_> {
           operation_type_definitions.push(self.parse_operation_type_definition()?);
           next = self.peek_token(Some(TokenKind::Name))?;
         }
-        end_token = Some(self.next_token(Some(TokenKind::Name))?);
+        end_token = Some(self.parse_token(TokenKind::CurlyBracketClosing)?);
         operation_type_definitions
       } else {
         vec![]
@@ -1658,7 +1658,7 @@ impl Parser<'_> {
   }
 
   fn parse_scalar_extension(&mut self, start_token: Token) -> Result<Definition, SyntaxError> {
-    self.next_token(None)?;
+    self.parse_token(TokenKind::Name)?;
 
     let name = self.parse_name()?;
 
@@ -1734,7 +1734,7 @@ impl Parser<'_> {
     let is_extension = peeked.kind == TokenKind::Name && peeked.value == "extend";
     if is_extension {
       // Skip the "extend" keyword
-      let start_token = self.next_token(None)?;
+      let start_token = self.parse_token(TokenKind::Name)?;
 
       // An extension must be followed by a type keyworkd
       let peeked = self.peek_token(None)?;
