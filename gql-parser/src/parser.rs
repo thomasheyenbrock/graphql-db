@@ -1744,9 +1744,45 @@ impl Parser<'_> {
     &mut self,
     description: Option<StringValue>,
   ) -> Result<Definition, SyntaxError> {
-    Err(SyntaxError {
-      message: String::from("TODO:"),
-      position: 999,
+    let name_token = self.parse_token(TokenKind::Name)?;
+
+    let name = self.parse_name()?;
+
+    let interfaces = self.parse_implements_interface()?;
+
+    let directives =
+      if self.peek_token(Some(TokenKind::CurlyBracketOpening))?.kind == TokenKind::AtSign {
+        self.parse_const_directives(Some(TokenKind::CurlyBracketOpening))?
+      } else {
+        vec![]
+      };
+
+    let (fields, curly_bracket_closing_token) = self.parse_field_definitions()?;
+
+    let start_token = match description {
+      None => name_token,
+      Some(ref description) => description.loc.start_token.clone(),
+    };
+    let end_token = if curly_bracket_closing_token != None {
+      curly_bracket_closing_token.unwrap()
+    } else if directives.len() > 0 {
+      directives.last().unwrap().loc.end_token.clone()
+    } else if interfaces.len() > 0 {
+      interfaces.last().unwrap().loc.end_token.clone()
+    } else {
+      name.loc.end_token.clone()
+    };
+
+    Ok(Definition::InterfaceTypeDefinition {
+      description,
+      name,
+      interfaces,
+      directives,
+      fields,
+      loc: Loc {
+        start_token,
+        end_token,
+      },
     })
   }
 

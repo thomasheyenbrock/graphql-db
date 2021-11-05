@@ -92,6 +92,17 @@ function transformNode(node) {
       });
     case "IntValue":
       return jsonifyLocs(node);
+    case "InterfaceTypeDefinition":
+      return jsonifyLocs({
+        ...node,
+        description: node.description
+          ? transformNode(node.description)
+          : node.description,
+        name: transformNode(node.name),
+        interfaces: node.interfaces.map(transformNode),
+        directives: node.directives.map(transformNode),
+        fields: node.fields.map(transformNode),
+      });
     case "ListType":
       return jsonifyLocs({ ...node, type: transformNode(node.type) });
     case "ListValue":
@@ -113,7 +124,6 @@ function transformNode(node) {
     case "ObjectTypeDefinition":
       return jsonifyLocs({
         ...node,
-
         description: node.description
           ? transformNode(node.description)
           : node.description,
