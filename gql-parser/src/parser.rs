@@ -925,7 +925,16 @@ impl Parser<'_> {
     }
   }
 
-  fn parse_arguments(&mut self) -> Result<Vec<Argument>, SyntaxError> {
+  fn parse_arguments(
+    &mut self,
+    expected: Option<TokenKind>,
+  ) -> Result<(Vec<Argument>, Option<Token>), SyntaxError> {
+    if self.peek_token(expected)?.kind != TokenKind::RoundBracketOpening {
+      return Ok((vec![], None));
+    }
+
+    self.parse_token(TokenKind::RoundBracketOpening)?;
+
     let mut arguments = vec![];
     let mut next = self.peek_token(Some(TokenKind::Name))?;
     while next.kind != TokenKind::RoundBracketClosing {
@@ -948,9 +957,21 @@ impl Parser<'_> {
       next = self.peek_token(Some(TokenKind::Name))?;
     }
 
-    Ok(arguments)
+    let round_bracket_closing_token = self.parse_token(TokenKind::RoundBracketClosing)?;
+
+    Ok((arguments, Some(round_bracket_closing_token)))
   }
-  fn parse_const_arguments(&mut self) -> Result<Vec<ConstArgument>, SyntaxError> {
+
+  fn parse_const_arguments(
+    &mut self,
+    expected: Option<TokenKind>,
+  ) -> Result<(Vec<ConstArgument>, Option<Token>), SyntaxError> {
+    if self.peek_token(expected)?.kind != TokenKind::RoundBracketOpening {
+      return Ok((vec![], None));
+    }
+
+    self.parse_token(TokenKind::RoundBracketOpening)?;
+
     let mut arguments = vec![];
     let mut next = self.peek_token(Some(TokenKind::Name))?;
     while next.kind != TokenKind::RoundBracketClosing {
@@ -973,7 +994,9 @@ impl Parser<'_> {
       next = self.peek_token(Some(TokenKind::Name))?;
     }
 
-    Ok(arguments)
+    let round_bracket_closing_token = self.parse_token(TokenKind::RoundBracketClosing)?;
+
+    Ok((arguments, Some(round_bracket_closing_token)))
   }
 
   fn parse_directives(
@@ -988,18 +1011,7 @@ impl Parser<'_> {
       let start_token = self.parse_token(TokenKind::AtSign)?;
       let name = self.parse_name()?;
 
-      let (arguments, arguments_end_token) =
-        if self.peek_token(expected_clone.clone())?.kind == TokenKind::RoundBracketOpening {
-          self.parse_token(TokenKind::RoundBracketOpening)?;
-          (
-            self.parse_arguments()?,
-            // Align with graphql-js: The error message always expects another
-            // argument instead of a closing bracket.
-            Some(self.next_token(Some(TokenKind::Name))?),
-          )
-        } else {
-          (vec![], None)
-        };
+      let (arguments, arguments_end_token) = self.parse_arguments(expected_clone.clone())?;
 
       let end_token = if arguments_end_token != None {
         arguments_end_token.unwrap()
@@ -1032,18 +1044,7 @@ impl Parser<'_> {
       let start_token = self.parse_token(TokenKind::AtSign)?;
       let name = self.parse_name()?;
 
-      let (arguments, arguments_end_token) =
-        if self.peek_token(expected_clone.clone())?.kind == TokenKind::RoundBracketOpening {
-          self.parse_token(TokenKind::RoundBracketOpening)?;
-          (
-            self.parse_const_arguments()?,
-            // Align with graphql-js: The error message always expects another
-            // argument instead of a closing bracket.
-            Some(self.next_token(Some(TokenKind::Name))?),
-          )
-        } else {
-          (vec![], None)
-        };
+      let (arguments, arguments_end_token) = self.parse_const_arguments(expected_clone.clone())?;
 
       let end_token = if arguments_end_token != None {
         arguments_end_token.unwrap()
@@ -1146,18 +1147,8 @@ impl Parser<'_> {
           (None, alias_or_name)
         };
 
-        let (arguments, arguments_end_token) =
-          if self.peek_token(Some(TokenKind::Name))?.kind == TokenKind::RoundBracketOpening {
-            self.parse_token(TokenKind::RoundBracketOpening)?;
-            (
-              self.parse_arguments()?,
-              // Align with graphql-js: The error message always expects another
-              // argument instead of a closing bracket.
-              Some(self.next_token(Some(TokenKind::Name))?),
-            )
-          } else {
-            (vec![], None)
-          };
+        let (arguments, arguments_end_token) = self.parse_arguments(Some(TokenKind::Name))?;
+
         let directives = if self.peek_token(Some(TokenKind::Name))?.kind == TokenKind::AtSign {
           self.parse_directives(Some(TokenKind::Name))?
         } else {
