@@ -107,6 +107,12 @@ function transformNode(node) {
         name: transformNode(node.name),
         directives: node.directives.map(transformNode),
       });
+    case "ScalarTypeExtension":
+      return jsonifyLocs({
+        ...node,
+        name: transformNode(node.name),
+        directives: node.directives.map(transformNode),
+      });
     case "SchemaDefinition":
       return jsonifyLocs({
         ...node,
