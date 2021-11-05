@@ -77,6 +77,19 @@ function transformNode(node) {
         directives: node.directives.map(transformNode),
         selectionSet: transformNode(node.selectionSet),
       });
+    case "InputValueDefinition":
+      return jsonifyLocs({
+        ...node,
+        description: node.description
+          ? transformNode(node.description)
+          : node.description,
+        name: transformNode(node.name),
+        type: transformNode(node.type),
+        defaultValue: node.defaultValue
+          ? transformNode(node.defaultValue)
+          : node.defaultValue,
+        directives: node.directives.map(transformNode),
+      });
     case "IntValue":
       return jsonifyLocs(node);
     case "ListType":

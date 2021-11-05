@@ -782,7 +782,7 @@ fn transform_input_value_definition<'a>(
   };
 
   let name = transform_name(cx, &input_value_definition.name)?;
-  obj.set(cx, "type", name)?;
+  obj.set(cx, "name", name)?;
 
   let gql_type = transform_type(cx, &input_value_definition.gql_type)?;
   obj.set(cx, "type", gql_type)?;
