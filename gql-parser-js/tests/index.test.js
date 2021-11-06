@@ -28,8 +28,27 @@ function transformNode(node) {
         ...node,
         definitions: node.definitions.map(transformNode),
       });
+    case "EnumTypeDefinition":
+      return jsonifyLocs({
+        ...node,
+        description: node.description
+          ? transformNode(node.description)
+          : node.description,
+        name: transformNode(node.name),
+        directives: node.directives.map(transformNode),
+        values: node.values.map(transformNode),
+      });
     case "EnumValue":
       return jsonifyLocs(node);
+    case "EnumValueDefinition":
+      return jsonifyLocs({
+        ...node,
+        description: node.description
+          ? transformNode(node.description)
+          : node.description,
+        name: transformNode(node.name),
+        directives: node.directives.map(transformNode),
+      });
     case "Field":
       return jsonifyLocs({
         ...node,

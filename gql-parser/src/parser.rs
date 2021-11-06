@@ -1490,6 +1490,56 @@ impl Parser<'_> {
     Ok(types)
   }
 
+  fn parse_enum_values_definition(
+    &mut self,
+  ) -> Result<(Vec<EnumValueDefinition>, Option<Token>), SyntaxError> {
+    if self.peek_token(None)?.kind != TokenKind::CurlyBracketOpening {
+      return Ok((vec![], None));
+    }
+
+    self.parse_token(TokenKind::CurlyBracketOpening)?;
+
+    let mut values = vec![];
+    let mut peeked = self.peek_token(Some(TokenKind::Name))?;
+    while peeked.kind != TokenKind::CurlyBracketClosing {
+      let description = if peeked.kind.equals(TokenKind::String { block: false }) {
+        Some(self.parse_string_value()?)
+      } else {
+        None
+      };
+
+      let enum_value = self.parse_enum_value()?;
+
+      let directives = self.parse_const_directives(Some(TokenKind::Name))?;
+
+      let start_token = if description != None {
+        description.as_ref().unwrap().loc.start_token.clone()
+      } else {
+        enum_value.loc.start_token.clone()
+      };
+      let end_token = if directives.len() > 0 {
+        directives.last().unwrap().loc.end_token.clone()
+      } else {
+        enum_value.loc.end_token.clone()
+      };
+
+      values.push(EnumValueDefinition {
+        description,
+        enum_value,
+        directives,
+        loc: Loc {
+          start_token,
+          end_token,
+        },
+      });
+      peeked = self.peek_token(Some(TokenKind::Name))?;
+    }
+
+    let curly_bracket_closing_token = self.parse_token(TokenKind::CurlyBracketClosing)?;
+
+    Ok((values, Some(curly_bracket_closing_token)))
+  }
+
   fn parse_operation_definition(&mut self) -> Result<Definition, SyntaxError> {
     let peeked = self.peek_token(None)?;
     match peeked.kind {
@@ -1796,9 +1846,36 @@ impl Parser<'_> {
     &mut self,
     description: Option<StringValue>,
   ) -> Result<Definition, SyntaxError> {
-    Err(SyntaxError {
-      message: String::from("TODO:"),
-      position: 999,
+    let name_token = self.parse_token(TokenKind::Name)?;
+
+    let name = self.parse_name()?;
+
+    let start_token = match description {
+      None => name_token,
+      Some(ref description) => description.loc.start_token.clone(),
+    };
+
+    let directives = self.parse_const_directives(Some(TokenKind::CurlyBracketOpening))?;
+
+    let (values, curly_bracket_closing_token) = self.parse_enum_values_definition()?;
+
+    let end_token = if curly_bracket_closing_token != None {
+      curly_bracket_closing_token.unwrap()
+    } else if directives.len() > 0 {
+      directives.last().unwrap().loc.end_token.clone()
+    } else {
+      name.loc.end_token.clone()
+    };
+
+    Ok(Definition::EnumTypeDefinition {
+      description,
+      name,
+      directives,
+      values,
+      loc: Loc {
+        start_token,
+        end_token,
+      },
     })
   }
 

@@ -864,6 +864,63 @@ fn transform_field_definition<'a>(
   Ok(obj)
 }
 
+fn transform_enum_value_definition<'a>(
+  cx: &mut CallContext<'a, JsObject>,
+  enum_value_definition: &EnumValueDefinition,
+) -> JsResult<'a, JsObject> {
+  let obj = cx.empty_object();
+  let kind = cx.string("EnumValueDefinition");
+  obj.set(cx, "kind", kind)?;
+
+  match &enum_value_definition.description {
+    None => {
+      let t_description = cx.undefined();
+      obj.set(cx, "description", t_description)?;
+    }
+    Some(description) => {
+      let t_description = transform_string_value(cx, &description)?;
+      obj.set(cx, "description", t_description)?;
+    }
+  };
+
+  // graphql-js does not parse enum value definitions correctly. There a `Name`
+  // node is parsed instead of an `EnumValue` node. That's why we handle this
+  // with "custom" code and not using `transform_enum_value`.
+  {
+    let name = cx.empty_object();
+    let kind = cx.string("Name");
+    name.set(cx, "kind", kind)?;
+
+    let value = cx.string(enum_value_definition.enum_value.value.clone());
+    name.set(cx, "value", value)?;
+
+    let loc = cx.empty_object();
+    let start = cx.number(enum_value_definition.enum_value.loc.start_token.start as u32);
+    loc.set(cx, "start", start)?;
+    let end = cx.number(enum_value_definition.enum_value.loc.end_token.end as u32);
+    loc.set(cx, "end", end)?;
+    name.set(cx, "loc", loc)?;
+
+    obj.set(cx, "name", name)?;
+  }
+
+  let directives = cx.empty_array();
+  for (index, directive) in enum_value_definition.directives.iter().enumerate() {
+    let transformed_directive = transform_const_directive(cx, directive)?;
+    directives.set(cx, index as u32, transformed_directive)?;
+  }
+  obj.set(cx, "directives", directives)?;
+
+  let loc = cx.empty_object();
+  let start = cx.number(enum_value_definition.loc.start_token.start as u32);
+  loc.set(cx, "start", start)?;
+  let end = cx.number(enum_value_definition.loc.end_token.end as u32);
+  loc.set(cx, "end", end)?;
+  obj.set(cx, "loc", loc)?;
+
+  Ok(obj)
+}
+
 fn transform_definition<'a>(
   cx: &mut CallContext<'a, JsObject>,
   definition: &Definition,
@@ -1175,6 +1232,51 @@ fn transform_definition<'a>(
         t_types.set(cx, index as u32, transformed_type)?;
       }
       obj.set(cx, "types", t_types)?;
+
+      let t_loc = cx.empty_object();
+      let start = cx.number(loc.start_token.start as u32);
+      t_loc.set(cx, "start", start)?;
+      let end = cx.number(loc.end_token.end as u32);
+      t_loc.set(cx, "end", end)?;
+      obj.set(cx, "loc", t_loc)?;
+    }
+    Definition::EnumTypeDefinition {
+      description,
+      name,
+      directives,
+      values,
+      loc,
+    } => {
+      let kind = cx.string("EnumTypeDefinition");
+      obj.set(cx, "kind", kind)?;
+
+      match description {
+        None => {
+          let t_description = cx.undefined();
+          obj.set(cx, "description", t_description)?;
+        }
+        Some(description) => {
+          let t_description = transform_string_value(cx, description)?;
+          obj.set(cx, "description", t_description)?;
+        }
+      };
+
+      let t_name = transform_name(cx, name)?;
+      obj.set(cx, "name", t_name)?;
+
+      let t_directives = cx.empty_array();
+      for (index, directive) in directives.iter().enumerate() {
+        let transformed_directive = transform_const_directive(cx, directive)?;
+        t_directives.set(cx, index as u32, transformed_directive)?;
+      }
+      obj.set(cx, "directives", t_directives)?;
+
+      let t_values = cx.empty_array();
+      for (index, value) in values.iter().enumerate() {
+        let transformed_value = transform_enum_value_definition(cx, value)?;
+        t_values.set(cx, index as u32, transformed_value)?;
+      }
+      obj.set(cx, "values", t_values)?;
 
       let t_loc = cx.empty_object();
       let start = cx.number(loc.start_token.start as u32);
