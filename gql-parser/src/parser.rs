@@ -2059,9 +2059,30 @@ impl Parser<'_> {
   }
 
   fn parse_enum_type_extension(&mut self, start_token: Token) -> Result<Definition, SyntaxError> {
-    Err(SyntaxError {
-      message: String::from("TODO:"),
-      position: 999,
+    self.parse_token(TokenKind::Name)?;
+
+    let name = self.parse_name()?;
+
+    let directives = self.parse_const_directives(Some(TokenKind::CurlyBracketOpening))?;
+
+    let (values, curly_bracket_closing_token) = self.parse_enum_values_definition()?;
+
+    let end_token = if curly_bracket_closing_token != None {
+      curly_bracket_closing_token.unwrap()
+    } else if directives.len() > 0 {
+      directives.last().unwrap().loc.end_token.clone()
+    } else {
+      name.loc.end_token.clone()
+    };
+
+    Ok(Definition::EnumTypeExtension {
+      name,
+      directives,
+      values,
+      loc: Loc {
+        start_token,
+        end_token,
+      },
     })
   }
 
