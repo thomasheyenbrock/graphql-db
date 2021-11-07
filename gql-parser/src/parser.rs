@@ -1148,16 +1148,20 @@ impl Parser<'_> {
     Ok(interfaces)
   }
 
-  fn parse_arguments_definition(&mut self) -> Result<Vec<InputValueDefinition>, SyntaxError> {
-    if self.peek_token(None)?.kind != TokenKind::RoundBracketOpening {
-      return Ok(vec![]);
+  fn parse_input_value_definitions(
+    &mut self,
+    opening: TokenKind,
+    closing: TokenKind,
+  ) -> Result<(Vec<InputValueDefinition>, Option<Token>), SyntaxError> {
+    if self.peek_token(None)?.kind != opening {
+      return Ok((vec![], None));
     }
 
-    self.parse_token(TokenKind::RoundBracketOpening)?;
+    self.parse_token(opening)?;
 
     let mut argument_definitions = vec![];
     let mut peeked = self.peek_token(Some(TokenKind::Name))?;
-    while peeked.kind != TokenKind::RoundBracketClosing {
+    while peeked.kind != closing {
       let description = if peeked.kind.equals(TokenKind::String { block: false }) {
         Some(self.parse_string_value()?)
       } else {
@@ -1206,9 +1210,9 @@ impl Parser<'_> {
       peeked = self.peek_token(Some(TokenKind::Name))?;
     }
 
-    self.parse_token(TokenKind::RoundBracketClosing)?;
+    let closing_token = self.parse_token(closing)?;
 
-    Ok(argument_definitions)
+    Ok((argument_definitions, Some(closing_token)))
   }
 
   fn parse_field_definitions(
@@ -1231,7 +1235,10 @@ impl Parser<'_> {
 
       let name = self.parse_name()?;
 
-      let arguments = self.parse_arguments_definition()?;
+      let (arguments, _) = self.parse_input_value_definitions(
+        TokenKind::RoundBracketOpening,
+        TokenKind::RoundBracketClosing,
+      )?;
 
       self.parse_token(TokenKind::Colon)?;
 
@@ -1883,9 +1890,42 @@ impl Parser<'_> {
     &mut self,
     description: Option<StringValue>,
   ) -> Result<Definition, SyntaxError> {
-    Err(SyntaxError {
-      message: String::from("TODO:"),
-      position: 999,
+    let name_token = self.parse_token(TokenKind::Name)?;
+
+    let name = self.parse_name()?;
+
+    let interfaces = self.parse_implements_interface()?;
+
+    let directives = self.parse_const_directives(Some(TokenKind::CurlyBracketOpening))?;
+
+    let (fields, curly_bracket_closing_token) = self.parse_input_value_definitions(
+      TokenKind::CurlyBracketOpening,
+      TokenKind::CurlyBracketClosing,
+    )?;
+
+    let start_token = match description {
+      None => name_token,
+      Some(ref description) => description.loc.start_token.clone(),
+    };
+    let end_token = if curly_bracket_closing_token != None {
+      curly_bracket_closing_token.unwrap()
+    } else if directives.len() > 0 {
+      directives.last().unwrap().loc.end_token.clone()
+    } else if interfaces.len() > 0 {
+      interfaces.last().unwrap().loc.end_token.clone()
+    } else {
+      name.loc.end_token.clone()
+    };
+
+    Ok(Definition::InputObjectTypeDefinition {
+      description,
+      name,
+      directives,
+      fields,
+      loc: Loc {
+        start_token,
+        end_token,
+      },
     })
   }
 

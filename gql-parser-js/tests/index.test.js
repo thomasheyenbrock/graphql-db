@@ -103,6 +103,16 @@ function transformNode(node) {
         directives: node.directives.map(transformNode),
         selectionSet: transformNode(node.selectionSet),
       });
+    case "InputObjectTypeDefinition":
+      return jsonifyLocs({
+        ...node,
+        description: node.description
+          ? transformNode(node.description)
+          : node.description,
+        name: transformNode(node.name),
+        directives: node.directives.map(transformNode),
+        fields: node.fields.map(transformNode),
+      });
     case "InputValueDefinition":
       return jsonifyLocs({
         ...node,
