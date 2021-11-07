@@ -6,24 +6,28 @@ pub struct Parser<'a> {
   lexer: Lexer<'a>,
 }
 
-impl Parser<'_> {
-  pub fn new(query: &str) -> Parser {
+impl<'a> Parser<'a> {
+  fn new(query: &str) -> Parser {
     Parser {
       lexer: Lexer::new(query),
     }
   }
 
+  fn error(&mut self, message: String) -> SyntaxError {
+    SyntaxError {
+      message,
+      position: self.lexer.get_position(),
+    }
+  }
+
   fn next_token(&mut self, expected: Option<TokenKind>) -> Result<Token, SyntaxError> {
     match self.lexer.next()? {
-      None => Err(SyntaxError {
-        message: match expected {
-          None => format!("Unexpected {}.", TokenKind::EOF),
-          Some(expected) => {
-            format!("Expected {}, found {}.", expected, TokenKind::EOF)
-          }
-        },
-        position: self.lexer.get_position(),
-      }),
+      None => Err(self.error(match expected {
+        None => format!("Unexpected {}.", TokenKind::EOF),
+        Some(expected) => {
+          format!("Expected {}, found {}.", expected, TokenKind::EOF)
+        }
+      })),
       Some(token) => match token.kind {
         TokenKind::Comment => self.next_token(expected),
         _ => Ok(token),
@@ -33,13 +37,10 @@ impl Parser<'_> {
 
   fn peek_token(&mut self, expected: Option<TokenKind>) -> Result<Token, SyntaxError> {
     match self.lexer.peek()? {
-      None => Err(SyntaxError {
-        message: match expected {
-          None => format!("Unexpected {}.", TokenKind::EOF),
-          Some(expected) => format!("Expected {}, found {}.", expected, TokenKind::EOF),
-        },
-        position: self.lexer.get_position(),
-      }),
+      None => Err(self.error(match expected {
+        None => format!("Unexpected {}.", TokenKind::EOF),
+        Some(expected) => format!("Expected {}, found {}.", expected, TokenKind::EOF),
+      })),
       Some(token) => match token.kind {
         TokenKind::Comment => {
           self.lexer.next()?;
@@ -205,10 +206,7 @@ impl Type {
           Ok(Type::NamedType(named_type))
         }
       }
-      _ => Err(SyntaxError {
-        message: format!("Expected {}, found {}.", TokenKind::Name, peeked),
-        position: p.lexer.get_position(),
-      }),
+      _ => Err(p.error(format!("Expected {}, found {}.", TokenKind::Name, peeked))),
     }
   }
 
@@ -324,7 +322,7 @@ impl BooleanValue {
     if token.value != "true" && token.value != "false" {
       Err(SyntaxError {
         message: format!("Expected {}, found {}.", TokenKind::Name, token),
-        position: p.lexer.get_position(),
+        position: token.start,
       })
     } else {
       let start_token = token.clone();
@@ -351,7 +349,7 @@ impl NullValue {
     if token.value != "null" {
       Err(SyntaxError {
         message: format!("Expected {}, found {}.", TokenKind::Name, token),
-        position: p.lexer.get_position(),
+        position: token.start,
       })
     } else {
       Ok(NullValue {
@@ -376,7 +374,7 @@ impl EnumValue {
     if token.value == "true" || token.value == "false" || token.value == "null" {
       Err(SyntaxError {
         message: format!("Expected {}, found {}.", TokenKind::Name, token),
-        position: p.lexer.get_position(),
+        position: token.start,
       })
     } else {
       let start_token = token.clone();
@@ -508,10 +506,7 @@ impl Value {
       }
       TokenKind::SquareBracketOpening => Ok(Value::ListValue(ListValue::parse(p)?)),
       TokenKind::CurlyBracketOpening => Ok(Value::ObjectValue(ObjectValue::parse(p)?)),
-      _ => Err(SyntaxError {
-        message: format!("Unexpected {}.", peeked),
-        position: p.lexer.get_position(),
-      }),
+      _ => Err(p.error(format!("Unexpected {}.", peeked))),
     }
   }
 
@@ -645,10 +640,7 @@ impl ConstValue {
       }
       TokenKind::SquareBracketOpening => Ok(ConstValue::ListValue(ConstListValue::parse(p)?)),
       TokenKind::CurlyBracketOpening => Ok(ConstValue::ObjectValue(ConstObjectValue::parse(p)?)),
-      _ => Err(SyntaxError {
-        message: format!("Unexpected {}.", peeked),
-        position: p.lexer.get_position(),
-      }),
+      _ => Err(p.error(format!("Unexpected {}.", peeked))),
     }
   }
 
@@ -1050,20 +1042,14 @@ impl Selection {
           }
           TokenKind::AtSign => Selection::parse_inline_fragment(p, start_token),
           TokenKind::CurlyBracketOpening => Selection::parse_inline_fragment(p, start_token),
-          _ => Err(SyntaxError {
-            message: format!(
-              "Expected {}, found {}.",
-              TokenKind::CurlyBracketOpening,
-              peeked
-            ),
-            position: p.lexer.get_position(),
-          }),
+          _ => Err(p.error(format!(
+            "Expected {}, found {}.",
+            TokenKind::CurlyBracketOpening,
+            peeked
+          ))),
         }
       }
-      _ => Err(SyntaxError {
-        message: format!("Expected {}, found {}.", TokenKind::Name, peeked),
-        position: p.lexer.get_position(),
-      }),
+      _ => Err(p.error(format!("Expected {}, found {}.", TokenKind::Name, peeked))),
     }
   }
 }
@@ -1117,7 +1103,7 @@ impl OperationTypeDefinition {
     } else {
       return Err(SyntaxError {
         message: format!("Unexpected name \"{}\".", start_token.value),
-        position: p.lexer.get_position(),
+        position: start_token.start,
       });
     };
 
@@ -1451,7 +1437,7 @@ impl DirectiveLocation {
     } else {
       return Err(SyntaxError {
         message: format!("Unexpected {}.", location),
-        position: p.lexer.get_position(),
+        position: location.start,
       });
     };
     Ok(DirectiveLocation { name, loc })
@@ -1666,7 +1652,7 @@ impl Definition {
         } else {
           return Err(SyntaxError {
             message: format!("Unexpected {}.", start_token),
-            position: p.lexer.get_position(),
+            position: start_token.start,
           });
         };
 
@@ -1695,10 +1681,7 @@ impl Definition {
           },
         })
       }
-      _ => Err(SyntaxError {
-        message: format!("Unexpected {}.", peeked),
-        position: p.lexer.get_position(),
-      }),
+      _ => Err(p.error(format!("Unexpected {}.", peeked))),
     }
   }
 
@@ -1713,14 +1696,14 @@ impl Definition {
         if on.value != "on" {
           return Err(SyntaxError {
             message: format!("Expected \"on\", found {}.", on),
-            position: p.lexer.get_position(),
+            position: on.start,
           });
         }
       }
       _ => {
         return Err(SyntaxError {
           message: format!("Expected \"on\", found {}.", on),
-          position: p.lexer.get_position(),
+          position: on.start,
         })
       }
     }
@@ -2038,7 +2021,7 @@ impl Definition {
     if on.value != "on" {
       return Err(SyntaxError {
         message: format!("Expected \"on\", found {}.", on),
-        position: p.lexer.get_position(),
+        position: on.start,
       });
     }
 
@@ -2111,10 +2094,8 @@ impl Definition {
     let directives = ConstDirective::parse_many(p, None)?;
 
     if directives.len() == 0 {
-      return Err(SyntaxError {
-        message: format!("Unexpected {}.", p.peek_token(None)?),
-        position: p.lexer.get_position(),
-      });
+      let peeked = p.peek_token(None)?;
+      return Err(p.error(format!("Unexpected {}.", peeked)));
     }
 
     let end_token = directives.last().unwrap().loc.end_token.clone();
@@ -2314,16 +2295,10 @@ impl Definition {
           } else if peeked.value == "input" {
             Definition::parse_input_object_type_extension(p, start_token)
           } else {
-            Err(SyntaxError {
-              message: format!("Unexpected {}", peeked),
-              position: p.lexer.get_position(),
-            })
+            Err(p.error(format!("Unexpected {}", peeked)))
           }
         }
-        _ => Err(SyntaxError {
-          message: format!("Unexpected {}", peeked),
-          position: p.lexer.get_position(),
-        }),
+        _ => Err(p.error(format!("Unexpected {}", peeked))),
       };
     }
 
@@ -2349,58 +2324,44 @@ impl Definition {
           {
             Some(string_value)
           } else {
-            return Err(SyntaxError {
-              message: format!("Unexpected {}", peeked),
-              position: p.lexer.get_position(),
-            });
+            return Err(p.error(format!("Unexpected {}", peeked)));
           }
         }
-        _ => {
-          return Err(SyntaxError {
-            message: format!("Unexpected {}", peeked),
-            position: p.lexer.get_position(),
-          })
-        }
+        _ => return Err(p.error(format!("Unexpected {}", peeked))),
       }
     } else {
       None
     };
 
-    let token = p.peek_token(None)?;
-    match token.kind {
+    let peeked = p.peek_token(None)?;
+    match peeked.kind {
       TokenKind::CurlyBracketOpening => Definition::parse_operation_definition(p),
       TokenKind::Name => {
-        if token.value == "query" || token.value == "mutation" || token.value == "subscription" {
+        if peeked.value == "query" || peeked.value == "mutation" || peeked.value == "subscription" {
           Definition::parse_operation_definition(p)
-        } else if token.value == "fragment" {
+        } else if peeked.value == "fragment" {
           Definition::parse_fragment_definition(p)
-        } else if token.value == "schema" {
+        } else if peeked.value == "schema" {
           Definition::parse_schema_definition(p, description)
-        } else if token.value == "scalar" {
+        } else if peeked.value == "scalar" {
           Definition::parse_scalar_type_definition(p, description)
-        } else if token.value == "type" {
+        } else if peeked.value == "type" {
           Definition::parse_object_type_definition(p, description)
-        } else if token.value == "interface" {
+        } else if peeked.value == "interface" {
           Definition::parse_interface_type_definition(p, description)
-        } else if token.value == "union" {
+        } else if peeked.value == "union" {
           Definition::parse_union_type_definition(p, description)
-        } else if token.value == "enum" {
+        } else if peeked.value == "enum" {
           Definition::parse_enum_type_definition(p, description)
-        } else if token.value == "input" {
+        } else if peeked.value == "input" {
           Definition::parse_input_object_type_definition(p, description)
-        } else if token.value == "directive" {
+        } else if peeked.value == "directive" {
           Definition::parse_directive_definition(p, description)
         } else {
-          Err(SyntaxError {
-            message: format!("Unexpected {}.", token),
-            position: token.start,
-          })
+          Err(p.error(format!("Unexpected {}.", peeked)))
         }
       }
-      _ => Err(SyntaxError {
-        message: format!("Unexpected {}.", token),
-        position: token.start,
-      }),
+      _ => Err(p.error(format!("Unexpected {}.", peeked))),
     }
   }
 }
