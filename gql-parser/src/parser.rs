@@ -636,6 +636,7 @@ impl Parser<'_> {
       },
     })
   }
+
   fn parse_float_value(&mut self) -> Result<FloatValue, SyntaxError> {
     let float_token = self.parse_token(TokenKind::Float)?;
     let start_token = float_token.clone();
@@ -727,11 +728,12 @@ impl Parser<'_> {
 
   fn parse_list_value(&mut self) -> Result<ListValue, SyntaxError> {
     let start_token = self.parse_token(TokenKind::SquareBracketOpening)?;
+
     let mut values = vec![];
-    let mut next = self.peek_token(None)?;
-    while next.kind != TokenKind::SquareBracketClosing {
+    let mut peeked = self.peek_token(None)?;
+    while peeked.kind != TokenKind::SquareBracketClosing {
       values.push(self.parse_value()?);
-      next = self.peek_token(None)?
+      peeked = self.peek_token(None)?
     }
 
     let end_token = self.parse_token(TokenKind::SquareBracketClosing)?;
@@ -764,22 +766,14 @@ impl Parser<'_> {
 
   fn parse_object_value(&mut self) -> Result<ObjectValue, SyntaxError> {
     let start_token = self.parse_token(TokenKind::CurlyBracketOpening)?;
+
     let mut fields = vec![];
-
-    let mut next = self.peek_token(Some(TokenKind::Name))?;
-    while next.kind != TokenKind::CurlyBracketClosing {
+    let mut peeked = self.peek_token(Some(TokenKind::Name))?;
+    while peeked.kind != TokenKind::CurlyBracketClosing {
       fields.push(self.parse_object_field()?);
-      next = self.peek_token(Some(TokenKind::Name))?;
+      peeked = self.peek_token(Some(TokenKind::Name))?;
     }
 
-    if next.kind != TokenKind::CurlyBracketClosing {
-      return Err(SyntaxError {
-        // Align with graphql-js: The error message always expects another
-        // field instead of a closing bracket.
-        message: format!("Expected {}, found {}.", TokenKind::Name, next),
-        position: self.lexer.get_position(),
-      });
-    }
     let end_token = self.parse_token(TokenKind::CurlyBracketClosing)?;
 
     Ok(ObjectValue {
@@ -818,14 +812,16 @@ impl Parser<'_> {
 
   fn parse_const_list_value(&mut self) -> Result<ConstListValue, SyntaxError> {
     let start_token = self.parse_token(TokenKind::SquareBracketOpening)?;
+
     let mut values = vec![];
-    let mut next = self.peek_token(None)?;
-    while next.kind != TokenKind::SquareBracketClosing {
+    let mut peeked = self.peek_token(None)?;
+    while peeked.kind != TokenKind::SquareBracketClosing {
       values.push(self.parse_const_value()?);
-      next = self.peek_token(None)?
+      peeked = self.peek_token(None)?
     }
 
     let end_token = self.parse_token(TokenKind::SquareBracketClosing)?;
+
     Ok(ConstListValue {
       values,
       loc: Loc {
@@ -855,22 +851,14 @@ impl Parser<'_> {
 
   fn parse_const_object_value(&mut self) -> Result<ConstObjectValue, SyntaxError> {
     let start_token = self.parse_token(TokenKind::CurlyBracketOpening)?;
+
     let mut fields = vec![];
-
-    let mut next = self.peek_token(Some(TokenKind::Name))?;
-    while next.kind != TokenKind::CurlyBracketClosing {
+    let mut peeked = self.peek_token(Some(TokenKind::Name))?;
+    while peeked.kind != TokenKind::CurlyBracketClosing {
       fields.push(self.parse_const_object_field()?);
-      next = self.peek_token(Some(TokenKind::Name))?;
+      peeked = self.peek_token(Some(TokenKind::Name))?;
     }
 
-    if next.kind != TokenKind::CurlyBracketClosing {
-      return Err(SyntaxError {
-        // Align with graphql-js: The error message always expects another
-        // field instead of a closing bracket.
-        message: format!("Expected {}, found {}.", TokenKind::Name, next),
-        position: self.lexer.get_position(),
-      });
-    }
     let end_token = self.parse_token(TokenKind::CurlyBracketClosing)?;
 
     Ok(ConstObjectValue {
@@ -908,26 +896,44 @@ impl Parser<'_> {
     }
   }
 
-  fn parse_description(&mut self) -> Result<StringValue, SyntaxError> {
-    let token = self.next_token(None)?;
-    let loc = Loc {
-      start_token: token.clone(),
-      end_token: token.clone(),
-    };
-    match token.kind {
-      TokenKind::String { block } => Ok(StringValue {
-        value: token.value,
-        block,
-        loc,
-      }),
-      _ => Err(SyntaxError {
-        message: format!(
-          "Expected {}, found {}",
-          TokenKind::String { block: false },
-          token
-        ),
-        position: self.lexer.get_position(),
-      }),
+  fn parse_description(&mut self) -> Result<Option<StringValue>, SyntaxError> {
+    if !self
+      .peek_token(None)?
+      .kind
+      .equals(TokenKind::String { block: false })
+    {
+      return Ok(None);
+    }
+
+    let string_value = self.parse_string_value()?;
+
+    // A description must be followed by a type system definition
+    let peeked = self.peek_token(None)?;
+    match peeked.kind {
+      TokenKind::Name => {
+        if peeked.value == "schema"
+          || peeked.value == "scalar"
+          || peeked.value == "type"
+          || peeked.value == "interface"
+          || peeked.value == "union"
+          || peeked.value == "enum"
+          || peeked.value == "input"
+          || peeked.value == "directive"
+        {
+          Ok(Some(string_value))
+        } else {
+          return Err(SyntaxError {
+            message: format!("Unexpected {}", peeked),
+            position: self.lexer.get_position(),
+          });
+        }
+      }
+      _ => {
+        return Err(SyntaxError {
+          message: format!("Unexpected {}", peeked),
+          position: self.lexer.get_position(),
+        })
+      }
     }
   }
 
@@ -942,8 +948,8 @@ impl Parser<'_> {
     self.parse_token(TokenKind::RoundBracketOpening)?;
 
     let mut arguments = vec![];
-    let mut next = self.peek_token(Some(TokenKind::Name))?;
-    while next.kind != TokenKind::RoundBracketClosing {
+    let mut peeked = self.peek_token(Some(TokenKind::Name))?;
+    while peeked.kind != TokenKind::RoundBracketClosing {
       let name = self.parse_name()?;
       self.parse_token(TokenKind::Colon)?;
       let value = self.parse_value()?;
@@ -960,7 +966,7 @@ impl Parser<'_> {
         },
       });
 
-      next = self.peek_token(Some(TokenKind::Name))?;
+      peeked = self.peek_token(Some(TokenKind::Name))?;
     }
 
     let round_bracket_closing_token = self.parse_token(TokenKind::RoundBracketClosing)?;
@@ -979,8 +985,8 @@ impl Parser<'_> {
     self.parse_token(TokenKind::RoundBracketOpening)?;
 
     let mut arguments = vec![];
-    let mut next = self.peek_token(Some(TokenKind::Name))?;
-    while next.kind != TokenKind::RoundBracketClosing {
+    let mut peeked = self.peek_token(Some(TokenKind::Name))?;
+    while peeked.kind != TokenKind::RoundBracketClosing {
       let name = self.parse_name()?;
       self.parse_token(TokenKind::Colon)?;
       let value = self.parse_const_value()?;
@@ -997,7 +1003,7 @@ impl Parser<'_> {
         },
       });
 
-      next = self.peek_token(Some(TokenKind::Name))?;
+      peeked = self.peek_token(Some(TokenKind::Name))?;
     }
 
     let round_bracket_closing_token = self.parse_token(TokenKind::RoundBracketClosing)?;
@@ -1012,8 +1018,8 @@ impl Parser<'_> {
     let expected_clone = expected.clone();
 
     let mut directives = vec![];
-    let mut next = self.peek_token(expected)?;
-    while next.kind == TokenKind::AtSign {
+    let mut peeked = self.peek_token(expected)?;
+    while peeked.kind == TokenKind::AtSign {
       let start_token = self.parse_token(TokenKind::AtSign)?;
       let name = self.parse_name()?;
 
@@ -1033,7 +1039,7 @@ impl Parser<'_> {
           end_token,
         },
       });
-      next = self.peek_token(expected_clone.clone())?;
+      peeked = self.peek_token(expected_clone.clone())?;
     }
     Ok(directives)
   }
@@ -1045,8 +1051,8 @@ impl Parser<'_> {
     let expected_clone = expected.clone();
 
     let mut directives = vec![];
-    let mut next = self.peek_token(expected)?;
-    while next.kind == TokenKind::AtSign {
+    let mut peeked = self.peek_token(expected)?;
+    while peeked.kind == TokenKind::AtSign {
       let start_token = self.parse_token(TokenKind::AtSign)?;
       let name = self.parse_name()?;
 
@@ -1066,7 +1072,7 @@ impl Parser<'_> {
           end_token,
         },
       });
-      next = self.peek_token(expected_clone.clone())?;
+      peeked = self.peek_token(expected_clone.clone())?;
     }
     Ok(directives)
   }
@@ -1074,17 +1080,17 @@ impl Parser<'_> {
   fn parse_variable_definitions(&mut self) -> Result<Vec<VariableDefinition>, SyntaxError> {
     self.parse_token(TokenKind::RoundBracketOpening)?;
     let mut variable_definitions = vec![];
-    let mut next = self.peek_token(Some(TokenKind::DollarSign))?;
+    let mut peeked = self.peek_token(Some(TokenKind::DollarSign))?;
 
     // There must be at least one variable
-    if next.kind != TokenKind::DollarSign {
+    if peeked.kind != TokenKind::DollarSign {
       return Err(SyntaxError {
-        message: format!("Expected {}, found {}.", TokenKind::DollarSign, next),
+        message: format!("Expected {}, found {}.", TokenKind::DollarSign, peeked),
         position: self.lexer.get_position(),
       });
     }
 
-    while next.kind == TokenKind::DollarSign {
+    while peeked.kind == TokenKind::DollarSign {
       let variable = self.parse_variable()?;
       self.parse_token(TokenKind::Colon)?;
       let gql_type = self.parse_type()?;
@@ -1118,14 +1124,14 @@ impl Parser<'_> {
           end_token,
         },
       });
-      next = self.peek_token(Some(TokenKind::DollarSign))?;
+      peeked = self.peek_token(Some(TokenKind::DollarSign))?;
     }
 
-    if next.kind != TokenKind::RoundBracketClosing {
+    if peeked.kind != TokenKind::RoundBracketClosing {
       return Err(SyntaxError {
         // Align with graphql-js: The error message always expects another
         // variable instead of a closing bracket.
-        message: format!("Expected {}, found {}.", TokenKind::DollarSign, next),
+        message: format!("Expected {}, found {}.", TokenKind::DollarSign, peeked),
         position: self.lexer.get_position(),
       });
     }
@@ -1433,10 +1439,10 @@ impl Parser<'_> {
     let start_token = self.parse_token(TokenKind::CurlyBracketOpening)?;
     let mut selections = vec1![self.parse_selection()?];
 
-    let mut next = self.peek_token(Some(TokenKind::Name))?;
-    while next.kind != TokenKind::CurlyBracketClosing {
+    let mut peeked = self.peek_token(Some(TokenKind::Name))?;
+    while peeked.kind != TokenKind::CurlyBracketClosing {
       selections.push(self.parse_selection()?);
-      next = self.peek_token(Some(TokenKind::Name))?;
+      peeked = self.peek_token(Some(TokenKind::Name))?;
     }
 
     let end_token = self.parse_token(TokenKind::CurlyBracketClosing)?;
@@ -1807,10 +1813,10 @@ impl Parser<'_> {
     self.parse_token(TokenKind::CurlyBracketOpening)?;
 
     let mut operation_types = vec1![self.parse_operation_type_definition()?];
-    let mut next = self.peek_token(Some(TokenKind::Name))?;
-    while next.kind != TokenKind::CurlyBracketClosing {
+    let mut peeked = self.peek_token(Some(TokenKind::Name))?;
+    while peeked.kind != TokenKind::CurlyBracketClosing {
       operation_types.push(self.parse_operation_type_definition()?);
-      next = self.peek_token(Some(TokenKind::Name))?;
+      peeked = self.peek_token(Some(TokenKind::Name))?;
     }
 
     let start_token = match description {
@@ -2123,10 +2129,10 @@ impl Parser<'_> {
       if directives.len() == 0 || self.peek_token(None)?.kind == TokenKind::CurlyBracketOpening {
         self.next_token(None)?;
         let mut operation_type_definitions = vec![self.parse_operation_type_definition()?];
-        let mut next = self.peek_token(Some(TokenKind::Name))?;
-        while next.kind != TokenKind::CurlyBracketClosing {
+        let mut peeked = self.peek_token(Some(TokenKind::Name))?;
+        while peeked.kind != TokenKind::CurlyBracketClosing {
           operation_type_definitions.push(self.parse_operation_type_definition()?);
-          next = self.peek_token(Some(TokenKind::Name))?;
+          peeked = self.peek_token(Some(TokenKind::Name))?;
         }
         end_token = Some(self.parse_token(TokenKind::CurlyBracketClosing)?);
         operation_type_definitions
@@ -2376,43 +2382,7 @@ impl Parser<'_> {
       };
     }
 
-    let description = if (self.peek_token(None)?.kind == (TokenKind::String { block: true }))
-      || (self.peek_token(None)?.kind == (TokenKind::String { block: false }))
-    {
-      // Parse the description
-      let string_value = self.parse_description()?;
-
-      // A description must be followed by a type system definition
-      let peeked = self.peek_token(None)?;
-      match peeked.kind {
-        TokenKind::Name => {
-          if peeked.value == "schema"
-            || peeked.value == "scalar"
-            || peeked.value == "type"
-            || peeked.value == "interface"
-            || peeked.value == "union"
-            || peeked.value == "enum"
-            || peeked.value == "input"
-            || peeked.value == "directive"
-          {
-            Some(string_value)
-          } else {
-            return Err(SyntaxError {
-              message: format!("Unexpected {}", peeked),
-              position: self.lexer.get_position(),
-            });
-          }
-        }
-        _ => {
-          return Err(SyntaxError {
-            message: format!("Unexpected {}", peeked),
-            position: self.lexer.get_position(),
-          })
-        }
-      }
-    } else {
-      None
-    };
+    let description = self.parse_description()?;
 
     let token = self.peek_token(None)?;
     match token.kind {
