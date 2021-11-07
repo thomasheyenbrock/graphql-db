@@ -1532,6 +1532,39 @@ fn transform_definition<'a>(
       t_loc.set(cx, "end", end)?;
       obj.set(cx, "loc", t_loc)?;
     }
+    Definition::InputObjectTypeExtension {
+      name,
+      directives,
+      fields,
+      loc,
+    } => {
+      let kind = cx.string("InputObjectTypeExtension");
+      obj.set(cx, "kind", kind)?;
+
+      let t_name = transform_name(cx, name)?;
+      obj.set(cx, "name", t_name)?;
+
+      let t_directives = cx.empty_array();
+      for (index, directive) in directives.iter().enumerate() {
+        let transformed_directive = transform_const_directive(cx, directive)?;
+        t_directives.set(cx, index as u32, transformed_directive)?;
+      }
+      obj.set(cx, "directives", t_directives)?;
+
+      let t_fields = cx.empty_array();
+      for (index, field) in fields.iter().enumerate() {
+        let transformed_field = transform_input_value_definition(cx, field)?;
+        t_fields.set(cx, index as u32, transformed_field)?;
+      }
+      obj.set(cx, "fields", t_fields)?;
+
+      let t_loc = cx.empty_object();
+      let start = cx.number(loc.start_token.start as u32);
+      t_loc.set(cx, "start", start)?;
+      let end = cx.number(loc.end_token.end as u32);
+      t_loc.set(cx, "end", end)?;
+      obj.set(cx, "loc", t_loc)?;
+    }
     _ => {} // TODO: remove this
   }
 
