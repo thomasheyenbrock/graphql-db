@@ -662,6 +662,14 @@ query MyQuery(
   $myVar: MyType = null
     @myDirective(myDirectiveArg: "myDirectiveArgValue")
     @myOtherDirective
+  $myVar: MyType = MY_ENUM_VALUE
+  $myVar: MyType = MY_ENUM_VALUE @myDirective
+  $myVar: MyType = MY_ENUM_VALUE @myDirective @myOtherDirective
+  $myVar: MyType = MY_ENUM_VALUE
+    @myDirective(myDirectiveArg: "myDirectiveArgValue")
+  $myVar: MyType = MY_ENUM_VALUE
+    @myDirective(myDirectiveArg: "myDirectiveArgValue")
+    @myOtherDirective
   $myVar: MyType = [42, 43]
   $myVar: MyType = [42, 43] @myDirective
   $myVar: MyType = [42, 43] @myDirective @myOtherDirective
