@@ -2,6 +2,68 @@ use crate::error::SyntaxError;
 use crate::lexer::{Lexer, Token, TokenKind};
 use vec1::Vec1;
 
+pub struct Parser<'a> {
+  lexer: Lexer<'a>,
+}
+
+impl Parser<'_> {
+  pub fn new(query: &str) -> Parser {
+    Parser {
+      lexer: Lexer::new(query),
+    }
+  }
+
+  fn next_token(&mut self, expected: Option<TokenKind>) -> Result<Token, SyntaxError> {
+    match self.lexer.next()? {
+      None => Err(SyntaxError {
+        message: match expected {
+          None => format!("Unexpected {}.", TokenKind::EOF),
+          Some(expected) => {
+            format!("Expected {}, found {}.", expected, TokenKind::EOF)
+          }
+        },
+        position: self.lexer.get_position(),
+      }),
+      Some(token) => match token.kind {
+        TokenKind::Comment => self.next_token(expected),
+        _ => Ok(token),
+      },
+    }
+  }
+
+  fn peek_token(&mut self, expected: Option<TokenKind>) -> Result<Token, SyntaxError> {
+    match self.lexer.peek()? {
+      None => Err(SyntaxError {
+        message: match expected {
+          None => format!("Unexpected {}.", TokenKind::EOF),
+          Some(expected) => format!("Expected {}, found {}.", expected, TokenKind::EOF),
+        },
+        position: self.lexer.get_position(),
+      }),
+      Some(token) => match token.kind {
+        TokenKind::Comment => {
+          self.lexer.next()?;
+          self.peek_token(expected)
+        }
+        _ => Ok(token),
+      },
+    }
+  }
+
+  fn parse_token(&mut self, token_kind: TokenKind) -> Result<Token, SyntaxError> {
+    let token = self.next_token(Some(token_kind.clone()))?;
+    let cloned_token = token.clone();
+    if token_kind.clone().equals(token.kind) {
+      Ok(cloned_token)
+    } else {
+      Err(SyntaxError {
+        message: format!("Expected {}, found {}.", token_kind, cloned_token.kind),
+        position: token.start,
+      })
+    }
+  }
+}
+
 #[derive(Debug, PartialEq)]
 pub struct Loc {
   pub start_token: Token,
@@ -32,16 +94,60 @@ pub struct Name {
   pub loc: Loc,
 }
 
+impl Name {
+  fn parse(p: &mut Parser) -> Result<Self, SyntaxError> {
+    let token = p.parse_token(TokenKind::Name)?;
+    let loc = Loc {
+      start_token: token.clone(),
+      end_token: token.clone(),
+    };
+    Ok(Name {
+      value: token.value,
+      loc,
+    })
+  }
+}
+
 #[derive(Debug, PartialEq)]
 pub struct NamedType {
   pub name: Name,
   pub loc: Loc,
 }
 
+impl NamedType {
+  fn parse(p: &mut Parser) -> Result<Self, SyntaxError> {
+    let name = Name::parse(p)?;
+    let start_token = name.loc.start_token.clone();
+    let end_token = name.loc.end_token.clone();
+    Ok(NamedType {
+      name,
+      loc: Loc {
+        start_token,
+        end_token,
+      },
+    })
+  }
+}
+
 #[derive(Debug, PartialEq)]
 pub struct ListType {
   pub gql_type: Box<Type>,
   pub loc: Loc,
+}
+
+impl ListType {
+  fn parse(p: &mut Parser) -> Result<Self, SyntaxError> {
+    let start_token = p.parse_token(TokenKind::SquareBracketOpening)?;
+    let gql_type = Type::parse(p)?;
+    let end_token = p.parse_token(TokenKind::SquareBracketClosing)?;
+    Ok(ListType {
+      gql_type: Box::new(gql_type),
+      loc: Loc {
+        start_token,
+        end_token,
+      },
+    })
+  }
 }
 
 #[derive(Debug, PartialEq)]
@@ -64,6 +170,48 @@ pub enum Type {
 }
 
 impl Type {
+  fn parse(p: &mut Parser) -> Result<Self, SyntaxError> {
+    let peeked = p.peek_token(Some(TokenKind::Name))?;
+    match peeked.kind {
+      TokenKind::SquareBracketOpening => {
+        let list_type = ListType::parse(p)?;
+        if p.peek_token(None)?.kind == TokenKind::ExclamationMark {
+          let start_token = list_type.loc.start_token.clone();
+          let end_token = p.parse_token(TokenKind::ExclamationMark)?;
+          Ok(Type::NonNullType(NonNullType {
+            gql_type: NullableType::ListType(list_type),
+            loc: Loc {
+              start_token,
+              end_token,
+            },
+          }))
+        } else {
+          Ok(Type::ListType(list_type))
+        }
+      }
+      TokenKind::Name => {
+        let named_type = NamedType::parse(p)?;
+        if p.peek_token(None)?.kind == TokenKind::ExclamationMark {
+          let start_token = named_type.loc.start_token.clone();
+          let end_token = p.parse_token(TokenKind::ExclamationMark)?;
+          Ok(Type::NonNullType(NonNullType {
+            gql_type: NullableType::NamedType(named_type),
+            loc: Loc {
+              start_token,
+              end_token,
+            },
+          }))
+        } else {
+          Ok(Type::NamedType(named_type))
+        }
+      }
+      _ => Err(SyntaxError {
+        message: format!("Expected {}, found {}.", TokenKind::Name, peeked),
+        position: p.lexer.get_position(),
+      }),
+    }
+  }
+
   fn get_end_token(&self) -> Token {
     match self {
       Type::NamedType(named_type) => named_type.loc.end_token.clone(),
@@ -79,16 +227,61 @@ pub struct Variable {
   pub loc: Loc,
 }
 
+impl Variable {
+  fn parse(p: &mut Parser) -> Result<Self, SyntaxError> {
+    let start_token = p.parse_token(TokenKind::DollarSign)?;
+    let name = Name::parse(p)?;
+    let end_token = name.loc.end_token.clone();
+    Ok(Variable {
+      name,
+      loc: Loc {
+        start_token,
+        end_token,
+      },
+    })
+  }
+}
+
 #[derive(Debug, PartialEq)]
 pub struct IntValue {
   pub value: String,
   pub loc: Loc,
 }
 
+impl IntValue {
+  fn parse(p: &mut Parser) -> Result<Self, SyntaxError> {
+    let int_token = p.parse_token(TokenKind::Int)?;
+    let start_token = int_token.clone();
+    let end_token = int_token.clone();
+    Ok(IntValue {
+      value: int_token.value,
+      loc: Loc {
+        start_token,
+        end_token,
+      },
+    })
+  }
+}
+
 #[derive(Debug, PartialEq)]
 pub struct FloatValue {
   pub value: String,
   pub loc: Loc,
+}
+
+impl FloatValue {
+  fn parse(p: &mut Parser) -> Result<Self, SyntaxError> {
+    let float_token = p.parse_token(TokenKind::Float)?;
+    let start_token = float_token.clone();
+    let end_token = float_token.clone();
+    Ok(FloatValue {
+      value: float_token.value,
+      loc: Loc {
+        start_token,
+        end_token,
+      },
+    })
+  }
 }
 
 #[derive(Debug, PartialEq)]
@@ -98,15 +291,77 @@ pub struct StringValue {
   pub loc: Loc,
 }
 
+impl StringValue {
+  fn parse(p: &mut Parser) -> Result<Self, SyntaxError> {
+    let string_token = p.parse_token(TokenKind::String { block: false })?;
+    let start_token = string_token.clone();
+    let end_token = string_token.clone();
+    Ok(StringValue {
+      value: string_token.value,
+      // We know that the token kind is actually a stirng, but Rust can't infer this
+      block: match string_token.kind {
+        TokenKind::String { block } => block,
+        // This can never happen
+        kind => panic!("Expected \"String\", found {}.", kind),
+      },
+      loc: Loc {
+        start_token,
+        end_token,
+      },
+    })
+  }
+}
+
 #[derive(Debug, PartialEq)]
 pub struct BooleanValue {
   pub value: bool,
   pub loc: Loc,
 }
 
+impl BooleanValue {
+  fn parse(p: &mut Parser) -> Result<Self, SyntaxError> {
+    let token = p.parse_token(TokenKind::Name)?;
+    if token.value != "true" && token.value != "false" {
+      Err(SyntaxError {
+        message: format!("Expected {}, found {}.", TokenKind::Name, token),
+        position: p.lexer.get_position(),
+      })
+    } else {
+      let start_token = token.clone();
+      let end_token = token.clone();
+      Ok(BooleanValue {
+        value: token.value == "true",
+        loc: Loc {
+          start_token,
+          end_token,
+        },
+      })
+    }
+  }
+}
+
 #[derive(Debug, PartialEq)]
 pub struct NullValue {
   pub loc: Loc,
+}
+
+impl NullValue {
+  fn parse(p: &mut Parser) -> Result<Self, SyntaxError> {
+    let token = p.parse_token(TokenKind::Name)?;
+    if token.value != "null" {
+      Err(SyntaxError {
+        message: format!("Expected {}, found {}.", TokenKind::Name, token),
+        position: p.lexer.get_position(),
+      })
+    } else {
+      Ok(NullValue {
+        loc: Loc {
+          start_token: token.clone(),
+          end_token: token,
+        },
+      })
+    }
+  }
 }
 
 #[derive(Debug, PartialEq)]
@@ -115,10 +370,54 @@ pub struct EnumValue {
   pub loc: Loc,
 }
 
+impl EnumValue {
+  fn parse(p: &mut Parser) -> Result<Self, SyntaxError> {
+    let token = p.parse_token(TokenKind::Name)?;
+    if token.value == "true" || token.value == "false" || token.value == "null" {
+      Err(SyntaxError {
+        message: format!("Expected {}, found {}.", TokenKind::Name, token),
+        position: p.lexer.get_position(),
+      })
+    } else {
+      let start_token = token.clone();
+      let end_token = token.clone();
+      Ok(EnumValue {
+        value: token.value,
+        loc: Loc {
+          start_token,
+          end_token,
+        },
+      })
+    }
+  }
+}
+
 #[derive(Debug, PartialEq)]
 pub struct ListValue {
   pub values: Vec<Value>,
   pub loc: Loc,
+}
+
+impl ListValue {
+  fn parse(p: &mut Parser) -> Result<Self, SyntaxError> {
+    let start_token = p.parse_token(TokenKind::SquareBracketOpening)?;
+
+    let mut values = vec![];
+    let mut peeked = p.peek_token(None)?;
+    while peeked.kind != TokenKind::SquareBracketClosing {
+      values.push(Value::parse(p)?);
+      peeked = p.peek_token(None)?
+    }
+
+    let end_token = p.parse_token(TokenKind::SquareBracketClosing)?;
+    Ok(ListValue {
+      values,
+      loc: Loc {
+        start_token,
+        end_token,
+      },
+    })
+  }
 }
 
 #[derive(Debug, PartialEq)]
@@ -128,10 +427,53 @@ pub struct ObjectField {
   pub loc: Loc,
 }
 
+impl ObjectField {
+  fn parse(p: &mut Parser) -> Result<Self, SyntaxError> {
+    let name = Name::parse(p)?;
+    p.parse_token(TokenKind::Colon)?;
+    let value = Value::parse(p)?;
+
+    let start_token = name.loc.start_token.clone();
+    let end_token = value.get_end_token();
+
+    Ok(ObjectField {
+      name,
+      value,
+      loc: Loc {
+        start_token,
+        end_token,
+      },
+    })
+  }
+}
+
 #[derive(Debug, PartialEq)]
 pub struct ObjectValue {
   pub fields: Vec<ObjectField>,
   pub loc: Loc,
+}
+
+impl ObjectValue {
+  fn parse(p: &mut Parser) -> Result<Self, SyntaxError> {
+    let start_token = p.parse_token(TokenKind::CurlyBracketOpening)?;
+
+    let mut fields = vec![];
+    let mut peeked = p.peek_token(Some(TokenKind::Name))?;
+    while peeked.kind != TokenKind::CurlyBracketClosing {
+      fields.push(ObjectField::parse(p)?);
+      peeked = p.peek_token(Some(TokenKind::Name))?;
+    }
+
+    let end_token = p.parse_token(TokenKind::CurlyBracketClosing)?;
+
+    Ok(ObjectValue {
+      fields,
+      loc: Loc {
+        start_token,
+        end_token,
+      },
+    })
+  }
 }
 
 #[derive(Debug, PartialEq)]
@@ -148,6 +490,31 @@ pub enum Value {
 }
 
 impl Value {
+  fn parse(p: &mut Parser) -> Result<Self, SyntaxError> {
+    let peeked = p.peek_token(None)?;
+    match peeked.kind {
+      TokenKind::DollarSign => Ok(Value::Variable(Variable::parse(p)?)),
+      TokenKind::Int => Ok(Value::IntValue(IntValue::parse(p)?)),
+      TokenKind::Float => Ok(Value::FloatValue(FloatValue::parse(p)?)),
+      TokenKind::String { .. } => Ok(Value::StringValue(StringValue::parse(p)?)),
+      TokenKind::Name => {
+        if peeked.value == "true" || peeked.value == "false" {
+          Ok(Value::BooleanValue(BooleanValue::parse(p)?))
+        } else if peeked.value == "null" {
+          Ok(Value::NullValue(NullValue::parse(p)?))
+        } else {
+          Ok(Value::EnumValue(EnumValue::parse(p)?))
+        }
+      }
+      TokenKind::SquareBracketOpening => Ok(Value::ListValue(ListValue::parse(p)?)),
+      TokenKind::CurlyBracketOpening => Ok(Value::ObjectValue(ObjectValue::parse(p)?)),
+      _ => Err(SyntaxError {
+        message: format!("Unexpected {}.", peeked),
+        position: p.lexer.get_position(),
+      }),
+    }
+  }
+
   fn get_end_token(&self) -> Token {
     match self {
       Value::Variable(variable) => variable.loc.end_token.clone(),
@@ -169,6 +536,29 @@ pub struct ConstListValue {
   pub loc: Loc,
 }
 
+impl ConstListValue {
+  fn parse(p: &mut Parser) -> Result<Self, SyntaxError> {
+    let start_token = p.parse_token(TokenKind::SquareBracketOpening)?;
+
+    let mut values = vec![];
+    let mut peeked = p.peek_token(None)?;
+    while peeked.kind != TokenKind::SquareBracketClosing {
+      values.push(ConstValue::parse(p)?);
+      peeked = p.peek_token(None)?
+    }
+
+    let end_token = p.parse_token(TokenKind::SquareBracketClosing)?;
+
+    Ok(ConstListValue {
+      values,
+      loc: Loc {
+        start_token,
+        end_token,
+      },
+    })
+  }
+}
+
 #[derive(Debug, PartialEq)]
 pub struct ConstObjectField {
   pub name: Name,
@@ -176,10 +566,53 @@ pub struct ConstObjectField {
   pub loc: Loc,
 }
 
+impl ConstObjectField {
+  fn parse(p: &mut Parser) -> Result<Self, SyntaxError> {
+    let name = Name::parse(p)?;
+    p.parse_token(TokenKind::Colon)?;
+    let value = ConstValue::parse(p)?;
+
+    let start_token = name.loc.start_token.clone();
+    let end_token = value.get_end_token();
+
+    Ok(ConstObjectField {
+      name,
+      value,
+      loc: Loc {
+        start_token,
+        end_token,
+      },
+    })
+  }
+}
+
 #[derive(Debug, PartialEq)]
 pub struct ConstObjectValue {
   pub fields: Vec<ConstObjectField>,
   pub loc: Loc,
+}
+
+impl ConstObjectValue {
+  fn parse(p: &mut Parser) -> Result<Self, SyntaxError> {
+    let start_token = p.parse_token(TokenKind::CurlyBracketOpening)?;
+
+    let mut fields = vec![];
+    let mut peeked = p.peek_token(Some(TokenKind::Name))?;
+    while peeked.kind != TokenKind::CurlyBracketClosing {
+      fields.push(ConstObjectField::parse(p)?);
+      peeked = p.peek_token(Some(TokenKind::Name))?;
+    }
+
+    let end_token = p.parse_token(TokenKind::CurlyBracketClosing)?;
+
+    Ok(ConstObjectValue {
+      fields,
+      loc: Loc {
+        start_token,
+        end_token,
+      },
+    })
+  }
 }
 
 #[derive(Debug, PartialEq)]
@@ -195,6 +628,30 @@ pub enum ConstValue {
 }
 
 impl ConstValue {
+  fn parse(p: &mut Parser) -> Result<Self, SyntaxError> {
+    let peeked = p.peek_token(None)?;
+    match peeked.kind {
+      TokenKind::Int => Ok(ConstValue::IntValue(IntValue::parse(p)?)),
+      TokenKind::Float => Ok(ConstValue::FloatValue(FloatValue::parse(p)?)),
+      TokenKind::String { .. } => Ok(ConstValue::StringValue(StringValue::parse(p)?)),
+      TokenKind::Name => {
+        if peeked.value == "true" || peeked.value == "false" {
+          Ok(ConstValue::BooleanValue(BooleanValue::parse(p)?))
+        } else if peeked.value == "null" {
+          Ok(ConstValue::NullValue(NullValue::parse(p)?))
+        } else {
+          Ok(ConstValue::EnumValue(EnumValue::parse(p)?))
+        }
+      }
+      TokenKind::SquareBracketOpening => Ok(ConstValue::ListValue(ConstListValue::parse(p)?)),
+      TokenKind::CurlyBracketOpening => Ok(ConstValue::ObjectValue(ConstObjectValue::parse(p)?)),
+      _ => Err(SyntaxError {
+        message: format!("Unexpected {}.", peeked),
+        position: p.lexer.get_position(),
+      }),
+    }
+  }
+
   fn get_end_token(&self) -> Token {
     match self {
       ConstValue::IntValue(int_value) => int_value.loc.end_token.clone(),
@@ -216,11 +673,95 @@ pub struct Argument {
   pub loc: Loc,
 }
 
+impl Argument {
+  fn parse(p: &mut Parser) -> Result<Self, SyntaxError> {
+    let name = Name::parse(p)?;
+    p.parse_token(TokenKind::Colon)?;
+    let value = Value::parse(p)?;
+
+    let start_token = name.loc.start_token.clone();
+    let end_token = value.get_end_token();
+
+    Ok(Argument {
+      name,
+      value,
+      loc: Loc {
+        start_token,
+        end_token,
+      },
+    })
+  }
+
+  fn parse_many(
+    p: &mut Parser,
+    expected: Option<TokenKind>,
+  ) -> Result<(Vec<Self>, Option<Token>), SyntaxError> {
+    if p.peek_token(expected)?.kind != TokenKind::RoundBracketOpening {
+      return Ok((vec![], None));
+    }
+
+    p.parse_token(TokenKind::RoundBracketOpening)?;
+
+    let mut arguments = vec![];
+    let mut peeked = p.peek_token(Some(TokenKind::Name))?;
+    while peeked.kind != TokenKind::RoundBracketClosing {
+      arguments.push(Argument::parse(p)?);
+      peeked = p.peek_token(Some(TokenKind::Name))?;
+    }
+
+    let round_bracket_closing_token = p.parse_token(TokenKind::RoundBracketClosing)?;
+
+    Ok((arguments, Some(round_bracket_closing_token)))
+  }
+}
+
 #[derive(Debug, PartialEq)]
 pub struct ConstArgument {
   pub name: Name,
   pub value: ConstValue,
   pub loc: Loc,
+}
+
+impl ConstArgument {
+  fn parse(p: &mut Parser) -> Result<Self, SyntaxError> {
+    let name = Name::parse(p)?;
+    p.parse_token(TokenKind::Colon)?;
+    let value = ConstValue::parse(p)?;
+
+    let start_token = name.loc.start_token.clone();
+    let end_token = value.get_end_token();
+
+    Ok(ConstArgument {
+      name,
+      value,
+      loc: Loc {
+        start_token,
+        end_token,
+      },
+    })
+  }
+
+  fn parse_many(
+    p: &mut Parser,
+    expected: Option<TokenKind>,
+  ) -> Result<(Vec<Self>, Option<Token>), SyntaxError> {
+    if p.peek_token(expected)?.kind != TokenKind::RoundBracketOpening {
+      return Ok((vec![], None));
+    }
+
+    p.parse_token(TokenKind::RoundBracketOpening)?;
+
+    let mut arguments = vec![];
+    let mut peeked = p.peek_token(Some(TokenKind::Name))?;
+    while peeked.kind != TokenKind::RoundBracketClosing {
+      arguments.push(ConstArgument::parse(p)?);
+      peeked = p.peek_token(Some(TokenKind::Name))?;
+    }
+
+    let round_bracket_closing_token = p.parse_token(TokenKind::RoundBracketClosing)?;
+
+    Ok((arguments, Some(round_bracket_closing_token)))
+  }
 }
 
 #[derive(Debug, PartialEq)]
@@ -230,11 +771,83 @@ pub struct Directive {
   pub loc: Loc,
 }
 
+impl Directive {
+  fn parse(p: &mut Parser, expected: Option<TokenKind>) -> Result<Self, SyntaxError> {
+    let start_token = p.parse_token(TokenKind::AtSign)?;
+    let name = Name::parse(p)?;
+
+    let (arguments, arguments_end_token) = Argument::parse_many(p, expected)?;
+
+    let end_token = if arguments_end_token != None {
+      arguments_end_token.unwrap()
+    } else {
+      name.loc.end_token.clone()
+    };
+
+    Ok(Directive {
+      name,
+      arguments,
+      loc: Loc {
+        start_token,
+        end_token,
+      },
+    })
+  }
+
+  fn parse_many(p: &mut Parser, expected: Option<TokenKind>) -> Result<Vec<Self>, SyntaxError> {
+    let expected_clone = expected.clone();
+
+    let mut directives = vec![];
+    let mut peeked = p.peek_token(expected)?;
+    while peeked.kind == TokenKind::AtSign {
+      directives.push(Directive::parse(p, expected_clone.clone())?);
+      peeked = p.peek_token(expected_clone.clone())?;
+    }
+    Ok(directives)
+  }
+}
+
 #[derive(Debug, PartialEq)]
 pub struct ConstDirective {
   pub name: Name,
   pub arguments: Vec<ConstArgument>,
   pub loc: Loc,
+}
+
+impl ConstDirective {
+  fn parse(p: &mut Parser, expected: Option<TokenKind>) -> Result<Self, SyntaxError> {
+    let start_token = p.parse_token(TokenKind::AtSign)?;
+    let name = Name::parse(p)?;
+
+    let (arguments, arguments_end_token) = ConstArgument::parse_many(p, expected)?;
+
+    let end_token = if arguments_end_token != None {
+      arguments_end_token.unwrap()
+    } else {
+      name.loc.end_token.clone()
+    };
+
+    Ok(ConstDirective {
+      name,
+      arguments,
+      loc: Loc {
+        start_token,
+        end_token,
+      },
+    })
+  }
+
+  fn parse_many(p: &mut Parser, expected: Option<TokenKind>) -> Result<Vec<Self>, SyntaxError> {
+    let expected_clone = expected.clone();
+
+    let mut directives = vec![];
+    let mut peeked = p.peek_token(expected)?;
+    while peeked.kind == TokenKind::AtSign {
+      directives.push(ConstDirective::parse(p, expected_clone.clone())?);
+      peeked = p.peek_token(expected_clone.clone())?;
+    }
+    Ok(directives)
+  }
 }
 
 #[derive(Debug, PartialEq)]
@@ -244,6 +857,63 @@ pub struct VariableDefinition {
   pub default_value: Option<ConstValue>,
   pub directives: Vec<Directive>,
   pub loc: Loc,
+}
+
+impl VariableDefinition {
+  fn parse(p: &mut Parser) -> Result<Self, SyntaxError> {
+    let variable = Variable::parse(p)?;
+    p.parse_token(TokenKind::Colon)?;
+    let gql_type = Type::parse(p)?;
+
+    let default_value = if p.peek_token(Some(TokenKind::DollarSign))?.kind == TokenKind::EqualsSign
+    {
+      p.parse_token(TokenKind::EqualsSign)?;
+      Some(ConstValue::parse(p)?)
+    } else {
+      None
+    };
+
+    let directives = Directive::parse_many(p, Some(TokenKind::DollarSign))?;
+
+    let start_token = variable.loc.start_token.clone();
+    let end_token = if directives.len() > 0 {
+      directives.last().unwrap().loc.end_token.clone()
+    } else if default_value != None {
+      default_value.as_ref().unwrap().get_end_token()
+    } else {
+      gql_type.get_end_token()
+    };
+
+    Ok(VariableDefinition {
+      variable,
+      gql_type,
+      default_value,
+      directives,
+      loc: Loc {
+        start_token,
+        end_token,
+      },
+    })
+  }
+
+  fn parse_many(p: &mut Parser) -> Result<Vec<Self>, SyntaxError> {
+    if p.peek_token(Some(TokenKind::CurlyBracketOpening))?.kind != TokenKind::RoundBracketOpening {
+      return Ok(vec![]);
+    }
+
+    p.parse_token(TokenKind::RoundBracketOpening)?;
+    // There must be at least one variable
+    let mut variable_definitions = vec![VariableDefinition::parse(p)?];
+    let mut peeked = p.peek_token(Some(TokenKind::DollarSign))?;
+    while peeked.kind == TokenKind::DollarSign {
+      variable_definitions.push(VariableDefinition::parse(p)?);
+      peeked = p.peek_token(Some(TokenKind::DollarSign))?;
+    }
+
+    p.parse_token(TokenKind::RoundBracketClosing)?;
+
+    Ok(variable_definitions)
+  }
 }
 
 #[derive(Debug, PartialEq)]
@@ -269,10 +939,162 @@ pub enum Selection {
   },
 }
 
+impl Selection {
+  fn parse_field(p: &mut Parser) -> Result<Self, SyntaxError> {
+    let alias_or_name = Name::parse(p)?;
+    let start_token = alias_or_name.loc.start_token.clone();
+
+    let peeked = p.peek_token(None)?;
+    let (alias, name) = if peeked.kind == TokenKind::Colon {
+      p.parse_token(TokenKind::Colon)?;
+      (Some(alias_or_name), Name::parse(p)?)
+    } else {
+      (None, alias_or_name)
+    };
+
+    let (arguments, arguments_end_token) = Argument::parse_many(p, Some(TokenKind::Name))?;
+
+    let directives = Directive::parse_many(p, Some(TokenKind::Name))?;
+
+    let selection_set =
+      if p.peek_token(Some(TokenKind::Name))?.kind == TokenKind::CurlyBracketOpening {
+        Some(SelectionSet::parse(p)?)
+      } else {
+        None
+      };
+
+    let end_token = if selection_set != None {
+      selection_set.as_ref().unwrap().loc.end_token.clone()
+    } else if directives.len() > 0 {
+      directives.last().unwrap().loc.end_token.clone()
+    } else if arguments_end_token != None {
+      arguments_end_token.unwrap()
+    } else {
+      name.loc.end_token.clone()
+    };
+
+    Ok(Selection::Field {
+      name,
+      alias,
+      arguments,
+      directives,
+      selection_set,
+      loc: Loc {
+        start_token,
+        end_token,
+      },
+    })
+  }
+
+  fn parse_fragment_spread(p: &mut Parser, start_token: Token) -> Result<Self, SyntaxError> {
+    let name = Name::parse(p)?;
+
+    let directives = Directive::parse_many(p, Some(TokenKind::Name))?;
+
+    let end_token = if directives.len() > 0 {
+      directives.last().unwrap().loc.end_token.clone()
+    } else {
+      name.loc.end_token.clone()
+    };
+
+    Ok(Selection::FragmentSpread {
+      name,
+      directives,
+      loc: Loc {
+        start_token,
+        end_token,
+      },
+    })
+  }
+
+  fn parse_inline_fragment(p: &mut Parser, start_token: Token) -> Result<Self, SyntaxError> {
+    let peeked = p.peek_token(Some(TokenKind::Name))?;
+    let type_condition = if peeked.kind == TokenKind::Name && peeked.value == "on" {
+      p.parse_token(TokenKind::Name)?;
+      Some(NamedType::parse(p)?)
+    } else {
+      None
+    };
+
+    let directives = Directive::parse_many(p, Some(TokenKind::Name))?;
+
+    let selection_set = SelectionSet::parse(p)?;
+
+    let end_token = selection_set.loc.end_token.clone();
+
+    Ok(Selection::InlineFragment {
+      type_condition,
+      directives,
+      selection_set,
+      loc: Loc {
+        start_token,
+        end_token,
+      },
+    })
+  }
+
+  fn parse(p: &mut Parser) -> Result<Self, SyntaxError> {
+    let peeked = p.peek_token(Some(TokenKind::Name))?;
+    match peeked.kind {
+      TokenKind::Name => Selection::parse_field(p),
+      TokenKind::Spread => {
+        let start_token = p.parse_token(TokenKind::Spread)?;
+        let peeked = p.peek_token(Some(TokenKind::CurlyBracketOpening))?;
+        match peeked.kind {
+          TokenKind::Name => {
+            if p.peek_token(Some(TokenKind::Name))?.value == "on" {
+              Selection::parse_inline_fragment(p, start_token)
+            } else {
+              Selection::parse_fragment_spread(p, start_token)
+            }
+          }
+          TokenKind::AtSign => Selection::parse_inline_fragment(p, start_token),
+          TokenKind::CurlyBracketOpening => Selection::parse_inline_fragment(p, start_token),
+          _ => Err(SyntaxError {
+            message: format!(
+              "Expected {}, found {}.",
+              TokenKind::CurlyBracketOpening,
+              peeked
+            ),
+            position: p.lexer.get_position(),
+          }),
+        }
+      }
+      _ => Err(SyntaxError {
+        message: format!("Expected {}, found {}.", TokenKind::Name, peeked),
+        position: p.lexer.get_position(),
+      }),
+    }
+  }
+}
+
 #[derive(Debug, PartialEq)]
 pub struct SelectionSet {
   pub selections: Vec1<Selection>,
   pub loc: Loc,
+}
+
+impl SelectionSet {
+  fn parse(p: &mut Parser) -> Result<Self, SyntaxError> {
+    let start_token = p.parse_token(TokenKind::CurlyBracketOpening)?;
+    let mut selections = vec1![Selection::parse(p)?];
+
+    let mut peeked = p.peek_token(Some(TokenKind::Name))?;
+    while peeked.kind != TokenKind::CurlyBracketClosing {
+      selections.push(Selection::parse(p)?);
+      peeked = p.peek_token(Some(TokenKind::Name))?;
+    }
+
+    let end_token = p.parse_token(TokenKind::CurlyBracketClosing)?;
+
+    Ok(SelectionSet {
+      selections,
+      loc: Loc {
+        start_token,
+        end_token,
+      },
+    })
+  }
 }
 
 #[derive(Debug, PartialEq)]
@@ -280,6 +1102,40 @@ pub struct OperationTypeDefinition {
   pub operation: OperationType,
   pub gql_type: NamedType,
   pub loc: Loc,
+}
+
+impl OperationTypeDefinition {
+  fn parse(p: &mut Parser) -> Result<Self, SyntaxError> {
+    let start_token = p.parse_token(TokenKind::Name)?;
+
+    let operation = if start_token.value == "query" {
+      OperationType::query
+    } else if start_token.value == "mutation" {
+      OperationType::mutation
+    } else if start_token.value == "subscription" {
+      OperationType::subscription
+    } else {
+      return Err(SyntaxError {
+        message: format!("Unexpected name \"{}\".", start_token.value),
+        position: p.lexer.get_position(),
+      });
+    };
+
+    p.parse_token(TokenKind::Colon)?;
+
+    let gql_type = NamedType::parse(p)?;
+
+    let end_token = gql_type.loc.end_token.clone();
+
+    Ok(OperationTypeDefinition {
+      operation,
+      gql_type,
+      loc: Loc {
+        start_token,
+        end_token,
+      },
+    })
+  }
 }
 
 #[derive(Debug, PartialEq)]
@@ -292,6 +1148,83 @@ pub struct InputValueDefinition {
   pub loc: Loc,
 }
 
+impl InputValueDefinition {
+  fn parse(p: &mut Parser) -> Result<Self, SyntaxError> {
+    let description = if p
+      .peek_token(Some(TokenKind::Name))?
+      .kind
+      .equals(TokenKind::String { block: false })
+    {
+      Some(StringValue::parse(p)?)
+    } else {
+      None
+    };
+
+    let name = Name::parse(p)?;
+
+    p.parse_token(TokenKind::Colon)?;
+
+    let gql_type = Type::parse(p)?;
+
+    let default_value = if p.peek_token(Some(TokenKind::Name))?.kind == TokenKind::EqualsSign {
+      p.parse_token(TokenKind::EqualsSign)?;
+      Some(ConstValue::parse(p)?)
+    } else {
+      None
+    };
+
+    let directives = ConstDirective::parse_many(p, Some(TokenKind::Name))?;
+
+    let start_token = if description != None {
+      description.as_ref().unwrap().loc.start_token.clone()
+    } else {
+      name.loc.start_token.clone()
+    };
+    let end_token = if directives.len() > 0 {
+      directives.last().unwrap().loc.end_token.clone()
+    } else if default_value != None {
+      default_value.as_ref().unwrap().get_end_token()
+    } else {
+      gql_type.get_end_token()
+    };
+
+    Ok(InputValueDefinition {
+      description,
+      name,
+      gql_type,
+      default_value,
+      directives,
+      loc: Loc {
+        start_token,
+        end_token,
+      },
+    })
+  }
+
+  fn parse_many(
+    p: &mut Parser,
+    opening: TokenKind,
+    closing: TokenKind,
+  ) -> Result<(Vec<Self>, Option<Token>), SyntaxError> {
+    if p.peek_token(None)?.kind != opening {
+      return Ok((vec![], None));
+    }
+
+    p.parse_token(opening)?;
+
+    let mut argument_definitions = vec![];
+    let mut peeked = p.peek_token(Some(TokenKind::Name))?;
+    while peeked.kind != closing {
+      argument_definitions.push(InputValueDefinition::parse(p)?);
+      peeked = p.peek_token(Some(TokenKind::Name))?;
+    }
+
+    let closing_token = p.parse_token(closing)?;
+
+    Ok((argument_definitions, Some(closing_token)))
+  }
+}
+
 #[derive(Debug, PartialEq)]
 pub struct FieldDefinition {
   pub description: Option<StringValue>,
@@ -302,12 +1235,140 @@ pub struct FieldDefinition {
   pub loc: Loc,
 }
 
+impl FieldDefinition {
+  fn parse(p: &mut Parser) -> Result<Self, SyntaxError> {
+    let description = if p
+      .peek_token(Some(TokenKind::Name))?
+      .kind
+      .equals(TokenKind::String { block: false })
+    {
+      Some(StringValue::parse(p)?)
+    } else {
+      None
+    };
+
+    let name = Name::parse(p)?;
+
+    let (arguments, _) = InputValueDefinition::parse_many(
+      p,
+      TokenKind::RoundBracketOpening,
+      TokenKind::RoundBracketClosing,
+    )?;
+
+    p.parse_token(TokenKind::Colon)?;
+
+    let gql_type = Type::parse(p)?;
+
+    let directives = ConstDirective::parse_many(p, None)?;
+
+    let start_token = if description != None {
+      description.as_ref().unwrap().loc.start_token.clone()
+    } else {
+      name.loc.start_token.clone()
+    };
+    let end_token = if directives.len() > 0 {
+      directives.last().unwrap().loc.end_token.clone()
+    } else {
+      gql_type.get_end_token()
+    };
+
+    Ok(FieldDefinition {
+      description,
+      name,
+      arguments,
+      gql_type,
+      directives,
+      loc: Loc {
+        start_token,
+        end_token,
+      },
+    })
+  }
+
+  fn parse_many(p: &mut Parser) -> Result<(Vec<Self>, Option<Token>), SyntaxError> {
+    if p.peek_token(None)?.kind != TokenKind::CurlyBracketOpening {
+      return Ok((vec![], None));
+    }
+
+    p.parse_token(TokenKind::CurlyBracketOpening)?;
+
+    let mut field_definitions = vec![FieldDefinition::parse(p)?];
+    let mut peeked = p.peek_token(Some(TokenKind::Name))?;
+    while peeked.kind != TokenKind::CurlyBracketClosing {
+      field_definitions.push(FieldDefinition::parse(p)?);
+      peeked = p.peek_token(Some(TokenKind::Name))?;
+    }
+
+    let curly_bracket_closing_token = p.parse_token(TokenKind::CurlyBracketClosing)?;
+
+    Ok((field_definitions, Some(curly_bracket_closing_token)))
+  }
+}
+
 #[derive(Debug, PartialEq)]
 pub struct EnumValueDefinition {
   pub description: Option<StringValue>,
   pub enum_value: EnumValue,
   pub directives: Vec<ConstDirective>,
   pub loc: Loc,
+}
+
+impl EnumValueDefinition {
+  fn parse(p: &mut Parser) -> Result<Self, SyntaxError> {
+    let description = if p
+      .peek_token(Some(TokenKind::Name))?
+      .kind
+      .equals(TokenKind::String { block: false })
+    {
+      Some(StringValue::parse(p)?)
+    } else {
+      None
+    };
+
+    let enum_value = EnumValue::parse(p)?;
+
+    let directives = ConstDirective::parse_many(p, Some(TokenKind::Name))?;
+
+    let start_token = if description != None {
+      description.as_ref().unwrap().loc.start_token.clone()
+    } else {
+      enum_value.loc.start_token.clone()
+    };
+    let end_token = if directives.len() > 0 {
+      directives.last().unwrap().loc.end_token.clone()
+    } else {
+      enum_value.loc.end_token.clone()
+    };
+
+    Ok(EnumValueDefinition {
+      description,
+      enum_value,
+      directives,
+      loc: Loc {
+        start_token,
+        end_token,
+      },
+    })
+  }
+
+  fn parse_many(p: &mut Parser) -> Result<(Vec<Self>, Option<Token>), SyntaxError> {
+    if p.peek_token(None)?.kind != TokenKind::CurlyBracketOpening {
+      return Ok((vec![], None));
+    }
+
+    p.parse_token(TokenKind::CurlyBracketOpening)?;
+
+    let mut values = vec![];
+    let mut peeked = p.peek_token(Some(TokenKind::Name))?;
+    while peeked.kind != TokenKind::CurlyBracketClosing {
+      values.push(EnumValueDefinition::parse(p)?);
+      peeked = p.peek_token(Some(TokenKind::Name))?;
+    }
+
+    let curly_bracket_closing_token = p.parse_token(TokenKind::CurlyBracketClosing)?;
+
+    Ok((values, Some(curly_bracket_closing_token)))
+  }
 }
 
 #[allow(non_camel_case_types)]
@@ -340,6 +1401,77 @@ pub enum DirectiveLocationName {
 pub struct DirectiveLocation {
   pub name: DirectiveLocationName,
   pub loc: Loc,
+}
+
+impl DirectiveLocation {
+  fn parse(p: &mut Parser) -> Result<Self, SyntaxError> {
+    let location = p.parse_token(TokenKind::Name)?;
+    let loc = Loc {
+      start_token: location.clone(),
+      end_token: location.clone(),
+    };
+    let name = if location.value == "QUERY" {
+      DirectiveLocationName::QUERY
+    } else if location.value == "MUTATION" {
+      DirectiveLocationName::MUTATION
+    } else if location.value == "SUBSCRIPTION" {
+      DirectiveLocationName::SUBSCRIPTION
+    } else if location.value == "FIELD" {
+      DirectiveLocationName::FIELD
+    } else if location.value == "FRAGMENT_DEFINITION" {
+      DirectiveLocationName::FRAGMENT_DEFINITION
+    } else if location.value == "FRAGMENT_SPREAD" {
+      DirectiveLocationName::FRAGMENT_SPREAD
+    } else if location.value == "INLINE_FRAGMENT" {
+      DirectiveLocationName::INLINE_FRAGMENT
+    } else if location.value == "VARIABLE_DEFINITION" {
+      DirectiveLocationName::VARIABLE_DEFINITION
+    } else if location.value == "SCHEMA" {
+      DirectiveLocationName::SCHEMA
+    } else if location.value == "SCALAR" {
+      DirectiveLocationName::SCALAR
+    } else if location.value == "OBJECT" {
+      DirectiveLocationName::OBJECT
+    } else if location.value == "FIELD_DEFINITION" {
+      DirectiveLocationName::FIELD_DEFINITION
+    } else if location.value == "ARGUMENT_DEFINITION" {
+      DirectiveLocationName::ARGUMENT_DEFINITION
+    } else if location.value == "INTERFACE" {
+      DirectiveLocationName::INTERFACE
+    } else if location.value == "UNION" {
+      DirectiveLocationName::UNION
+    } else if location.value == "ENUM" {
+      DirectiveLocationName::ENUM
+    } else if location.value == "ENUM_VALUE" {
+      DirectiveLocationName::ENUM_VALUE
+    } else if location.value == "INPUT_OBJECT" {
+      DirectiveLocationName::INPUT_OBJECT
+    } else if location.value == "INPUT_FIELD_DEFINITION" {
+      DirectiveLocationName::INPUT_FIELD_DEFINITION
+    } else {
+      return Err(SyntaxError {
+        message: format!("Unexpected {}.", location),
+        position: p.lexer.get_position(),
+      });
+    };
+    Ok(DirectiveLocation { name, loc })
+  }
+
+  fn parse_many(p: &mut Parser) -> Result<Vec1<Self>, SyntaxError> {
+    if p.peek_token(Some(TokenKind::Name))?.kind == TokenKind::VerticalBar {
+      p.parse_token(TokenKind::VerticalBar)?;
+    }
+
+    let mut locations = vec1![DirectiveLocation::parse(p)?];
+    let mut peeked = p.peek_token(None)?;
+    while peeked.kind == TokenKind::VerticalBar {
+      p.parse_token(TokenKind::VerticalBar)?;
+      locations.push(DirectiveLocation::parse(p)?);
+      peeked = p.peek_token(None)?;
+    }
+
+    Ok(locations)
+  }
 }
 
 #[derive(Debug, PartialEq)]
@@ -460,1235 +1592,53 @@ pub enum Definition {
   },
 }
 
-#[derive(Debug, PartialEq)]
-pub struct Document {
-  pub definitions: Vec1<Definition>,
-  pub loc: Loc,
-}
-
-pub struct Parser<'a> {
-  lexer: Lexer<'a>,
-}
-
-impl Parser<'_> {
-  pub fn new(query: &str) -> Parser {
-    Parser {
-      lexer: Lexer::new(query),
-    }
-  }
-
-  fn next_token(&mut self, expected: Option<TokenKind>) -> Result<Token, SyntaxError> {
-    match self.lexer.next()? {
-      None => Err(SyntaxError {
-        message: match expected {
-          None => format!("Unexpected {}.", TokenKind::EOF),
-          Some(expected) => {
-            format!("Expected {}, found {}.", expected, TokenKind::EOF)
-          }
-        },
-        position: self.lexer.get_position(),
-      }),
-      Some(token) => match token.kind {
-        TokenKind::Comment => self.next_token(expected),
-        _ => Ok(token),
-      },
-    }
-  }
-
-  fn peek_token(&mut self, expected: Option<TokenKind>) -> Result<Token, SyntaxError> {
-    match self.lexer.peek()? {
-      None => Err(SyntaxError {
-        message: match expected {
-          None => format!("Unexpected {}.", TokenKind::EOF),
-          Some(expected) => format!("Expected {}, found {}.", expected, TokenKind::EOF),
-        },
-        position: self.lexer.get_position(),
-      }),
-      Some(token) => match token.kind {
-        TokenKind::Comment => {
-          self.lexer.next()?;
-          self.peek_token(expected)
-        }
-        _ => Ok(token),
-      },
-    }
-  }
-
-  fn parse_token(&mut self, token_kind: TokenKind) -> Result<Token, SyntaxError> {
-    let token = self.next_token(Some(token_kind.clone()))?;
-    let cloned_token = token.clone();
-    if token_kind.clone().equals(token.kind) {
-      Ok(cloned_token)
-    } else {
-      Err(SyntaxError {
-        message: format!("Expected {}, found {}.", token_kind, cloned_token.kind),
-        position: token.start,
-      })
-    }
-  }
-
-  fn parse_name(&mut self) -> Result<Name, SyntaxError> {
-    let token = self.parse_token(TokenKind::Name)?;
-    let loc = Loc {
-      start_token: token.clone(),
-      end_token: token.clone(),
-    };
-    Ok(Name {
-      value: token.value,
-      loc,
-    })
-  }
-
-  fn parse_named_type(&mut self) -> Result<NamedType, SyntaxError> {
-    let name = self.parse_name()?;
-    let start_token = name.loc.start_token.clone();
-    let end_token = name.loc.end_token.clone();
-    Ok(NamedType {
-      name,
-      loc: Loc {
-        start_token,
-        end_token,
-      },
-    })
-  }
-
-  fn parse_list_type(&mut self) -> Result<ListType, SyntaxError> {
-    let start_token = self.parse_token(TokenKind::SquareBracketOpening)?;
-    let gql_type = self.parse_type()?;
-    let end_token = self.parse_token(TokenKind::SquareBracketClosing)?;
-    Ok(ListType {
-      gql_type: Box::new(gql_type),
-      loc: Loc {
-        start_token,
-        end_token,
-      },
-    })
-  }
-
-  fn parse_type(&mut self) -> Result<Type, SyntaxError> {
-    let peeked = self.peek_token(Some(TokenKind::Name))?;
-    match peeked.kind {
-      TokenKind::SquareBracketOpening => {
-        let list_type = self.parse_list_type()?;
-        // We don't use self.peek_token because we don't know what token to expect
-        let peeked = self.lexer.peek()?;
-        if peeked != None && peeked.unwrap().kind == TokenKind::ExclamationMark {
-          let start_token = list_type.loc.start_token.clone();
-          let end_token = self.parse_token(TokenKind::ExclamationMark)?;
-          Ok(Type::NonNullType(NonNullType {
-            gql_type: NullableType::ListType(list_type),
-            loc: Loc {
-              start_token,
-              end_token,
-            },
-          }))
-        } else {
-          Ok(Type::ListType(list_type))
-        }
-      }
-      TokenKind::Name => {
-        let named_type = self.parse_named_type()?;
-        // We don't use self.peek_token because we don't know what token to expect
-        let peeked = self.lexer.peek()?;
-        if peeked != None && peeked.unwrap().kind == TokenKind::ExclamationMark {
-          let start_token = named_type.loc.start_token.clone();
-          let end_token = self.parse_token(TokenKind::ExclamationMark)?;
-          Ok(Type::NonNullType(NonNullType {
-            gql_type: NullableType::NamedType(named_type),
-            loc: Loc {
-              start_token,
-              end_token,
-            },
-          }))
-        } else {
-          Ok(Type::NamedType(named_type))
-        }
-      }
-      _ => Err(SyntaxError {
-        message: format!("Expected {}, found {}.", TokenKind::Name, peeked),
-        position: self.lexer.get_position(),
-      }),
-    }
-  }
-
-  fn parse_variable(&mut self) -> Result<Variable, SyntaxError> {
-    let start_token = self.parse_token(TokenKind::DollarSign)?;
-    let name = self.parse_name()?;
-    let end_token = name.loc.end_token.clone();
-    Ok(Variable {
-      name,
-      loc: Loc {
-        start_token,
-        end_token,
-      },
-    })
-  }
-
-  fn parse_int_value(&mut self) -> Result<IntValue, SyntaxError> {
-    let int_token = self.parse_token(TokenKind::Int)?;
-    let start_token = int_token.clone();
-    let end_token = int_token.clone();
-    Ok(IntValue {
-      value: int_token.value,
-      loc: Loc {
-        start_token,
-        end_token,
-      },
-    })
-  }
-
-  fn parse_float_value(&mut self) -> Result<FloatValue, SyntaxError> {
-    let float_token = self.parse_token(TokenKind::Float)?;
-    let start_token = float_token.clone();
-    let end_token = float_token.clone();
-    Ok(FloatValue {
-      value: float_token.value,
-      loc: Loc {
-        start_token,
-        end_token,
-      },
-    })
-  }
-
-  fn parse_string_value(&mut self) -> Result<StringValue, SyntaxError> {
-    let string_token = self.parse_token(TokenKind::String { block: false })?;
-    let start_token = string_token.clone();
-    let end_token = string_token.clone();
-    Ok(StringValue {
-      value: string_token.value,
-      // We know that the token kind is actually a stirng, but Rust can't infer this
-      block: match string_token.kind {
-        TokenKind::String { block } => block,
-        // This can never happen
-        kind => panic!("Expected \"String\", found {}.", kind),
-      },
-      loc: Loc {
-        start_token,
-        end_token,
-      },
-    })
-  }
-
-  fn parse_boolean_value(&mut self) -> Result<BooleanValue, SyntaxError> {
-    let token = self.parse_token(TokenKind::Name)?;
-    if token.value != "true" && token.value != "false" {
-      Err(SyntaxError {
-        message: format!("Expected {}, found {}.", TokenKind::Name, token),
-        position: self.lexer.get_position(),
-      })
-    } else {
-      let start_token = token.clone();
-      let end_token = token.clone();
-      Ok(BooleanValue {
-        value: token.value == "true",
-        loc: Loc {
-          start_token,
-          end_token,
-        },
-      })
-    }
-  }
-
-  fn parse_null_value(&mut self) -> Result<NullValue, SyntaxError> {
-    let token = self.parse_token(TokenKind::Name)?;
-    if token.value != "null" {
-      Err(SyntaxError {
-        message: format!("Expected {}, found {}.", TokenKind::Name, token),
-        position: self.lexer.get_position(),
-      })
-    } else {
-      Ok(NullValue {
-        loc: Loc {
-          start_token: token.clone(),
-          end_token: token,
-        },
-      })
-    }
-  }
-
-  fn parse_enum_value(&mut self) -> Result<EnumValue, SyntaxError> {
-    let token = self.parse_token(TokenKind::Name)?;
-    if token.value == "true" || token.value == "false" || token.value == "null" {
-      Err(SyntaxError {
-        message: format!("Expected {}, found {}.", TokenKind::Name, token),
-        position: self.lexer.get_position(),
-      })
-    } else {
-      let start_token = token.clone();
-      let end_token = token.clone();
-      Ok(EnumValue {
-        value: token.value,
-        loc: Loc {
-          start_token,
-          end_token,
-        },
-      })
-    }
-  }
-
-  fn parse_list_value(&mut self) -> Result<ListValue, SyntaxError> {
-    let start_token = self.parse_token(TokenKind::SquareBracketOpening)?;
-
-    let mut values = vec![];
-    let mut peeked = self.peek_token(None)?;
-    while peeked.kind != TokenKind::SquareBracketClosing {
-      values.push(self.parse_value()?);
-      peeked = self.peek_token(None)?
-    }
-
-    let end_token = self.parse_token(TokenKind::SquareBracketClosing)?;
-    Ok(ListValue {
-      values,
-      loc: Loc {
-        start_token,
-        end_token,
-      },
-    })
-  }
-
-  fn parse_object_field(&mut self) -> Result<ObjectField, SyntaxError> {
-    let name = self.parse_name()?;
-    self.parse_token(TokenKind::Colon)?;
-    let value = self.parse_value()?;
-
-    let start_token = name.loc.start_token.clone();
-    let end_token = value.get_end_token();
-
-    Ok(ObjectField {
-      name,
-      value,
-      loc: Loc {
-        start_token,
-        end_token,
-      },
-    })
-  }
-
-  fn parse_object_value(&mut self) -> Result<ObjectValue, SyntaxError> {
-    let start_token = self.parse_token(TokenKind::CurlyBracketOpening)?;
-
-    let mut fields = vec![];
-    let mut peeked = self.peek_token(Some(TokenKind::Name))?;
-    while peeked.kind != TokenKind::CurlyBracketClosing {
-      fields.push(self.parse_object_field()?);
-      peeked = self.peek_token(Some(TokenKind::Name))?;
-    }
-
-    let end_token = self.parse_token(TokenKind::CurlyBracketClosing)?;
-
-    Ok(ObjectValue {
-      fields,
-      loc: Loc {
-        start_token,
-        end_token,
-      },
-    })
-  }
-
-  fn parse_value(&mut self) -> Result<Value, SyntaxError> {
-    let peeked = self.peek_token(None)?;
-    match peeked.kind {
-      TokenKind::DollarSign => Ok(Value::Variable(self.parse_variable()?)),
-      TokenKind::Int => Ok(Value::IntValue(self.parse_int_value()?)),
-      TokenKind::Float => Ok(Value::FloatValue(self.parse_float_value()?)),
-      TokenKind::String { .. } => Ok(Value::StringValue(self.parse_string_value()?)),
-      TokenKind::Name => {
-        if peeked.value == "true" || peeked.value == "false" {
-          Ok(Value::BooleanValue(self.parse_boolean_value()?))
-        } else if peeked.value == "null" {
-          Ok(Value::NullValue(self.parse_null_value()?))
-        } else {
-          Ok(Value::EnumValue(self.parse_enum_value()?))
-        }
-      }
-      TokenKind::SquareBracketOpening => Ok(Value::ListValue(self.parse_list_value()?)),
-      TokenKind::CurlyBracketOpening => Ok(Value::ObjectValue(self.parse_object_value()?)),
-      _ => Err(SyntaxError {
-        message: format!("Unexpected {}.", peeked),
-        position: self.lexer.get_position(),
-      }),
-    }
-  }
-
-  fn parse_const_list_value(&mut self) -> Result<ConstListValue, SyntaxError> {
-    let start_token = self.parse_token(TokenKind::SquareBracketOpening)?;
-
-    let mut values = vec![];
-    let mut peeked = self.peek_token(None)?;
-    while peeked.kind != TokenKind::SquareBracketClosing {
-      values.push(self.parse_const_value()?);
-      peeked = self.peek_token(None)?
-    }
-
-    let end_token = self.parse_token(TokenKind::SquareBracketClosing)?;
-
-    Ok(ConstListValue {
-      values,
-      loc: Loc {
-        start_token,
-        end_token,
-      },
-    })
-  }
-
-  fn parse_const_object_field(&mut self) -> Result<ConstObjectField, SyntaxError> {
-    let name = self.parse_name()?;
-    self.parse_token(TokenKind::Colon)?;
-    let value = self.parse_const_value()?;
-
-    let start_token = name.loc.start_token.clone();
-    let end_token = value.get_end_token();
-
-    Ok(ConstObjectField {
-      name,
-      value,
-      loc: Loc {
-        start_token,
-        end_token,
-      },
-    })
-  }
-
-  fn parse_const_object_value(&mut self) -> Result<ConstObjectValue, SyntaxError> {
-    let start_token = self.parse_token(TokenKind::CurlyBracketOpening)?;
-
-    let mut fields = vec![];
-    let mut peeked = self.peek_token(Some(TokenKind::Name))?;
-    while peeked.kind != TokenKind::CurlyBracketClosing {
-      fields.push(self.parse_const_object_field()?);
-      peeked = self.peek_token(Some(TokenKind::Name))?;
-    }
-
-    let end_token = self.parse_token(TokenKind::CurlyBracketClosing)?;
-
-    Ok(ConstObjectValue {
-      fields,
-      loc: Loc {
-        start_token,
-        end_token,
-      },
-    })
-  }
-
-  fn parse_const_value(&mut self) -> Result<ConstValue, SyntaxError> {
-    let peeked = self.peek_token(None)?;
-    match peeked.kind {
-      TokenKind::Int => Ok(ConstValue::IntValue(self.parse_int_value()?)),
-      TokenKind::Float => Ok(ConstValue::FloatValue(self.parse_float_value()?)),
-      TokenKind::String { .. } => Ok(ConstValue::StringValue(self.parse_string_value()?)),
-      TokenKind::Name => {
-        if peeked.value == "true" || peeked.value == "false" {
-          Ok(ConstValue::BooleanValue(self.parse_boolean_value()?))
-        } else if peeked.value == "null" {
-          Ok(ConstValue::NullValue(self.parse_null_value()?))
-        } else {
-          Ok(ConstValue::EnumValue(self.parse_enum_value()?))
-        }
-      }
-      TokenKind::SquareBracketOpening => Ok(ConstValue::ListValue(self.parse_const_list_value()?)),
-      TokenKind::CurlyBracketOpening => {
-        Ok(ConstValue::ObjectValue(self.parse_const_object_value()?))
-      }
-      _ => Err(SyntaxError {
-        message: format!("Unexpected {}.", peeked),
-        position: self.lexer.get_position(),
-      }),
-    }
-  }
-
-  fn parse_description(&mut self) -> Result<Option<StringValue>, SyntaxError> {
-    if !self
-      .peek_token(None)?
-      .kind
-      .equals(TokenKind::String { block: false })
-    {
-      return Ok(None);
-    }
-
-    let string_value = self.parse_string_value()?;
-
-    // A description must be followed by a type system definition
-    let peeked = self.peek_token(None)?;
-    match peeked.kind {
-      TokenKind::Name => {
-        if peeked.value == "schema"
-          || peeked.value == "scalar"
-          || peeked.value == "type"
-          || peeked.value == "interface"
-          || peeked.value == "union"
-          || peeked.value == "enum"
-          || peeked.value == "input"
-          || peeked.value == "directive"
-        {
-          Ok(Some(string_value))
-        } else {
-          return Err(SyntaxError {
-            message: format!("Unexpected {}", peeked),
-            position: self.lexer.get_position(),
-          });
-        }
-      }
-      _ => {
-        return Err(SyntaxError {
-          message: format!("Unexpected {}", peeked),
-          position: self.lexer.get_position(),
-        })
-      }
-    }
-  }
-
-  fn parse_arguments(
-    &mut self,
-    expected: Option<TokenKind>,
-  ) -> Result<(Vec<Argument>, Option<Token>), SyntaxError> {
-    if self.peek_token(expected)?.kind != TokenKind::RoundBracketOpening {
-      return Ok((vec![], None));
-    }
-
-    self.parse_token(TokenKind::RoundBracketOpening)?;
-
-    let mut arguments = vec![];
-    let mut peeked = self.peek_token(Some(TokenKind::Name))?;
-    while peeked.kind != TokenKind::RoundBracketClosing {
-      let name = self.parse_name()?;
-      self.parse_token(TokenKind::Colon)?;
-      let value = self.parse_value()?;
-
-      let start_token = name.loc.start_token.clone();
-      let end_token = value.get_end_token();
-
-      arguments.push(Argument {
-        name,
-        value,
-        loc: Loc {
-          start_token,
-          end_token,
-        },
-      });
-
-      peeked = self.peek_token(Some(TokenKind::Name))?;
-    }
-
-    let round_bracket_closing_token = self.parse_token(TokenKind::RoundBracketClosing)?;
-
-    Ok((arguments, Some(round_bracket_closing_token)))
-  }
-
-  fn parse_const_arguments(
-    &mut self,
-    expected: Option<TokenKind>,
-  ) -> Result<(Vec<ConstArgument>, Option<Token>), SyntaxError> {
-    if self.peek_token(expected)?.kind != TokenKind::RoundBracketOpening {
-      return Ok((vec![], None));
-    }
-
-    self.parse_token(TokenKind::RoundBracketOpening)?;
-
-    let mut arguments = vec![];
-    let mut peeked = self.peek_token(Some(TokenKind::Name))?;
-    while peeked.kind != TokenKind::RoundBracketClosing {
-      let name = self.parse_name()?;
-      self.parse_token(TokenKind::Colon)?;
-      let value = self.parse_const_value()?;
-
-      let start_token = name.loc.start_token.clone();
-      let end_token = value.get_end_token();
-
-      arguments.push(ConstArgument {
-        name,
-        value,
-        loc: Loc {
-          start_token,
-          end_token,
-        },
-      });
-
-      peeked = self.peek_token(Some(TokenKind::Name))?;
-    }
-
-    let round_bracket_closing_token = self.parse_token(TokenKind::RoundBracketClosing)?;
-
-    Ok((arguments, Some(round_bracket_closing_token)))
-  }
-
-  fn parse_directives(
-    &mut self,
-    expected: Option<TokenKind>,
-  ) -> Result<Vec<Directive>, SyntaxError> {
-    let expected_clone = expected.clone();
-
-    let mut directives = vec![];
-    let mut peeked = self.peek_token(expected)?;
-    while peeked.kind == TokenKind::AtSign {
-      let start_token = self.parse_token(TokenKind::AtSign)?;
-      let name = self.parse_name()?;
-
-      let (arguments, arguments_end_token) = self.parse_arguments(expected_clone.clone())?;
-
-      let end_token = if arguments_end_token != None {
-        arguments_end_token.unwrap()
-      } else {
-        name.loc.end_token.clone()
-      };
-
-      directives.push(Directive {
-        name,
-        arguments,
-        loc: Loc {
-          start_token,
-          end_token,
-        },
-      });
-      peeked = self.peek_token(expected_clone.clone())?;
-    }
-    Ok(directives)
-  }
-
-  fn parse_const_directives(
-    &mut self,
-    expected: Option<TokenKind>,
-  ) -> Result<Vec<ConstDirective>, SyntaxError> {
-    let expected_clone = expected.clone();
-
-    let mut directives = vec![];
-    let mut peeked = self.peek_token(expected)?;
-    while peeked.kind == TokenKind::AtSign {
-      let start_token = self.parse_token(TokenKind::AtSign)?;
-      let name = self.parse_name()?;
-
-      let (arguments, arguments_end_token) = self.parse_const_arguments(expected_clone.clone())?;
-
-      let end_token = if arguments_end_token != None {
-        arguments_end_token.unwrap()
-      } else {
-        name.loc.end_token.clone()
-      };
-
-      directives.push(ConstDirective {
-        name,
-        arguments,
-        loc: Loc {
-          start_token,
-          end_token,
-        },
-      });
-      peeked = self.peek_token(expected_clone.clone())?;
-    }
-    Ok(directives)
-  }
-
-  fn parse_variable_definitions(&mut self) -> Result<Vec<VariableDefinition>, SyntaxError> {
-    self.parse_token(TokenKind::RoundBracketOpening)?;
-    let mut variable_definitions = vec![];
-    let mut peeked = self.peek_token(Some(TokenKind::DollarSign))?;
-
-    // There must be at least one variable
-    if peeked.kind != TokenKind::DollarSign {
-      return Err(SyntaxError {
-        message: format!("Expected {}, found {}.", TokenKind::DollarSign, peeked),
-        position: self.lexer.get_position(),
-      });
-    }
-
-    while peeked.kind == TokenKind::DollarSign {
-      let variable = self.parse_variable()?;
-      self.parse_token(TokenKind::Colon)?;
-      let gql_type = self.parse_type()?;
-
-      let default_value =
-        if self.peek_token(Some(TokenKind::DollarSign))?.kind == TokenKind::EqualsSign {
-          self.parse_token(TokenKind::EqualsSign)?;
-          Some(self.parse_const_value()?)
-        } else {
-          None
-        };
-
-      let directives = self.parse_directives(Some(TokenKind::DollarSign))?;
-
-      let start_token = variable.loc.start_token.clone();
-      let end_token = if directives.len() > 0 {
-        directives.last().unwrap().loc.end_token.clone()
-      } else if default_value != None {
-        default_value.as_ref().unwrap().get_end_token()
-      } else {
-        gql_type.get_end_token()
-      };
-
-      variable_definitions.push(VariableDefinition {
-        variable,
-        gql_type,
-        default_value,
-        directives,
-        loc: Loc {
-          start_token,
-          end_token,
-        },
-      });
-      peeked = self.peek_token(Some(TokenKind::DollarSign))?;
-    }
-
-    if peeked.kind != TokenKind::RoundBracketClosing {
-      return Err(SyntaxError {
-        // Align with graphql-js: The error message always expects another
-        // variable instead of a closing bracket.
-        message: format!("Expected {}, found {}.", TokenKind::DollarSign, peeked),
-        position: self.lexer.get_position(),
-      });
-    }
-    self.next_token(Some(TokenKind::DollarSign))?;
-
-    Ok(variable_definitions)
-  }
-
-  fn parse_implements_interface(&mut self) -> Result<Vec<NamedType>, SyntaxError> {
-    let peeked = self.peek_token(None)?;
+impl Definition {
+  fn parse_implements_interface(p: &mut Parser) -> Result<Vec<NamedType>, SyntaxError> {
+    let peeked = p.peek_token(None)?;
     if !(peeked.kind == TokenKind::Name && peeked.value == "implements") {
       return Ok(vec![]);
     }
 
-    self.parse_token(TokenKind::Name)?;
-    if self.peek_token(Some(TokenKind::Name))?.kind == TokenKind::Ampersand {
-      self.parse_token(TokenKind::Ampersand)?;
+    p.parse_token(TokenKind::Name)?;
+    if p.peek_token(Some(TokenKind::Name))?.kind == TokenKind::Ampersand {
+      p.parse_token(TokenKind::Ampersand)?;
     }
-    let mut interfaces = vec![self.parse_named_type()?];
+    let mut interfaces = vec![NamedType::parse(p)?];
 
-    while self.peek_token(None)?.kind == TokenKind::Ampersand {
-      self.parse_token(TokenKind::Ampersand)?;
-      interfaces.push(self.parse_named_type()?);
+    while p.peek_token(None)?.kind == TokenKind::Ampersand {
+      p.parse_token(TokenKind::Ampersand)?;
+      interfaces.push(NamedType::parse(p)?);
     }
 
     Ok(interfaces)
   }
 
-  fn parse_input_value_definitions(
-    &mut self,
-    opening: TokenKind,
-    closing: TokenKind,
-  ) -> Result<(Vec<InputValueDefinition>, Option<Token>), SyntaxError> {
-    if self.peek_token(None)?.kind != opening {
-      return Ok((vec![], None));
-    }
-
-    self.parse_token(opening)?;
-
-    let mut argument_definitions = vec![];
-    let mut peeked = self.peek_token(Some(TokenKind::Name))?;
-    while peeked.kind != closing {
-      let description = if peeked.kind.equals(TokenKind::String { block: false }) {
-        Some(self.parse_string_value()?)
-      } else {
-        None
-      };
-
-      let name = self.parse_name()?;
-
-      self.parse_token(TokenKind::Colon)?;
-
-      let gql_type = self.parse_type()?;
-
-      let default_value = if self.peek_token(Some(TokenKind::Name))?.kind == TokenKind::EqualsSign {
-        self.parse_token(TokenKind::EqualsSign)?;
-        Some(self.parse_const_value()?)
-      } else {
-        None
-      };
-
-      let directives = self.parse_const_directives(Some(TokenKind::Name))?;
-
-      let start_token = if description != None {
-        description.as_ref().unwrap().loc.start_token.clone()
-      } else {
-        name.loc.start_token.clone()
-      };
-      let end_token = if directives.len() > 0 {
-        directives.last().unwrap().loc.end_token.clone()
-      } else if default_value != None {
-        default_value.as_ref().unwrap().get_end_token()
-      } else {
-        gql_type.get_end_token()
-      };
-
-      argument_definitions.push(InputValueDefinition {
-        description,
-        name,
-        gql_type,
-        default_value,
-        directives,
-        loc: Loc {
-          start_token,
-          end_token,
-        },
-      });
-      peeked = self.peek_token(Some(TokenKind::Name))?;
-    }
-
-    let closing_token = self.parse_token(closing)?;
-
-    Ok((argument_definitions, Some(closing_token)))
-  }
-
-  fn parse_field_definitions(
-    &mut self,
-  ) -> Result<(Vec<FieldDefinition>, Option<Token>), SyntaxError> {
-    if self.peek_token(None)?.kind != TokenKind::CurlyBracketOpening {
-      return Ok((vec![], None));
-    }
-
-    self.parse_token(TokenKind::CurlyBracketOpening)?;
-
-    let mut field_definitions = vec![];
-    let mut peeked = self.peek_token(Some(TokenKind::Name))?;
-    while peeked.kind != TokenKind::CurlyBracketClosing {
-      let description = if peeked.kind.equals(TokenKind::String { block: false }) {
-        Some(self.parse_string_value()?)
-      } else {
-        None
-      };
-
-      let name = self.parse_name()?;
-
-      let (arguments, _) = self.parse_input_value_definitions(
-        TokenKind::RoundBracketOpening,
-        TokenKind::RoundBracketClosing,
-      )?;
-
-      self.parse_token(TokenKind::Colon)?;
-
-      let gql_type = self.parse_type()?;
-
-      let directives = self.parse_const_directives(None)?;
-
-      let start_token = if description != None {
-        description.as_ref().unwrap().loc.start_token.clone()
-      } else {
-        name.loc.start_token.clone()
-      };
-      let end_token = if directives.len() > 0 {
-        directives.last().unwrap().loc.end_token.clone()
-      } else {
-        gql_type.get_end_token()
-      };
-
-      field_definitions.push(FieldDefinition {
-        description,
-        name,
-        arguments,
-        gql_type,
-        directives,
-        loc: Loc {
-          start_token,
-          end_token,
-        },
-      });
-      peeked = self.peek_token(Some(TokenKind::Name))?;
-    }
-
-    if field_definitions.len() == 0 {
-      return Err(SyntaxError {
-        message: format!(
-          "Expected Name, found {}.",
-          self.peek_token(Some(TokenKind::Name))?.kind
-        ),
-        position: self.lexer.get_position(),
-      });
-    }
-
-    let curly_bracket_closing_token = self.parse_token(TokenKind::CurlyBracketClosing)?;
-
-    Ok((field_definitions, Some(curly_bracket_closing_token)))
-  }
-
-  fn parse_selection(&mut self) -> Result<Selection, SyntaxError> {
-    let peeked = self.peek_token(Some(TokenKind::Name))?;
-    match peeked.kind {
-      TokenKind::Name => {
-        let alias_or_name = self.parse_name()?;
-        let start_token = alias_or_name.loc.start_token.clone();
-
-        let peeked = self.peek_token(None)?;
-        let (alias, name) = if peeked.kind == TokenKind::Colon {
-          self.parse_token(TokenKind::Colon)?;
-          (Some(alias_or_name), self.parse_name()?)
-        } else {
-          (None, alias_or_name)
-        };
-
-        let (arguments, arguments_end_token) = self.parse_arguments(Some(TokenKind::Name))?;
-
-        let directives = self.parse_directives(Some(TokenKind::Name))?;
-
-        let selection_set =
-          if self.peek_token(Some(TokenKind::Name))?.kind == TokenKind::CurlyBracketOpening {
-            Some(self.parse_selection_set()?)
-          } else {
-            None
-          };
-
-        let end_token = if selection_set != None {
-          selection_set.as_ref().unwrap().loc.end_token.clone()
-        } else if directives.len() > 0 {
-          directives.last().unwrap().loc.end_token.clone()
-        } else if arguments_end_token != None {
-          arguments_end_token.unwrap()
-        } else {
-          name.loc.end_token.clone()
-        };
-
-        Ok(Selection::Field {
-          name,
-          alias,
-          arguments,
-          directives,
-          selection_set,
-          loc: Loc {
-            start_token,
-            end_token,
-          },
-        })
-      }
-      TokenKind::Spread => {
-        let start_token = self.parse_token(TokenKind::Spread)?;
-        let peeked = self.peek_token(Some(TokenKind::CurlyBracketOpening))?;
-        match peeked.kind {
-          TokenKind::Name => {
-            let name = self.parse_name()?;
-            if name.value == "on" {
-              let type_condition = Some(self.parse_named_type()?);
-
-              let directives = self.parse_directives(Some(TokenKind::Name))?;
-
-              let selection_set = self.parse_selection_set()?;
-              let end_token = selection_set.loc.end_token.clone();
-
-              Ok(Selection::InlineFragment {
-                type_condition,
-                directives,
-                selection_set,
-                loc: Loc {
-                  start_token,
-                  end_token,
-                },
-              })
-            } else {
-              let directives = self.parse_directives(Some(TokenKind::Name))?;
-
-              let end_token = if directives.len() > 0 {
-                directives.last().unwrap().loc.end_token.clone()
-              } else {
-                name.loc.end_token.clone()
-              };
-
-              Ok(Selection::FragmentSpread {
-                name,
-                directives,
-                loc: Loc {
-                  start_token,
-                  end_token,
-                },
-              })
-            }
-          }
-          TokenKind::AtSign => {
-            let directives = self.parse_directives(Some(TokenKind::Name))?;
-
-            let selection_set = self.parse_selection_set()?;
-            let end_token = selection_set.loc.end_token.clone();
-
-            Ok(Selection::InlineFragment {
-              type_condition: None,
-              directives,
-              selection_set,
-              loc: Loc {
-                start_token,
-                end_token,
-              },
-            })
-          }
-          TokenKind::CurlyBracketOpening => {
-            let selection_set = self.parse_selection_set()?;
-            let end_token = selection_set.loc.end_token.clone();
-
-            Ok(Selection::InlineFragment {
-              type_condition: None,
-              directives: vec![],
-              selection_set,
-              loc: Loc {
-                start_token,
-                end_token,
-              },
-            })
-          }
-          _ => Err(SyntaxError {
-            message: format!(
-              "Expected {}, found {}.",
-              TokenKind::CurlyBracketOpening,
-              peeked
-            ),
-            position: self.lexer.get_position(),
-          }),
-        }
-      }
-      _ => Err(SyntaxError {
-        message: format!("Expected {}, found {}.", TokenKind::Name, peeked),
-        position: self.lexer.get_position(),
-      }),
-    }
-  }
-
-  fn parse_selection_set(&mut self) -> Result<SelectionSet, SyntaxError> {
-    let start_token = self.parse_token(TokenKind::CurlyBracketOpening)?;
-    let mut selections = vec1![self.parse_selection()?];
-
-    let mut peeked = self.peek_token(Some(TokenKind::Name))?;
-    while peeked.kind != TokenKind::CurlyBracketClosing {
-      selections.push(self.parse_selection()?);
-      peeked = self.peek_token(Some(TokenKind::Name))?;
-    }
-
-    let end_token = self.parse_token(TokenKind::CurlyBracketClosing)?;
-
-    Ok(SelectionSet {
-      selections,
-      loc: Loc {
-        start_token,
-        end_token,
-      },
-    })
-  }
-
-  fn parse_operation_type_definition(&mut self) -> Result<OperationTypeDefinition, SyntaxError> {
-    let start_token = self.parse_token(TokenKind::Name)?;
-
-    let operation = if start_token.value == "query" {
-      OperationType::query
-    } else if start_token.value == "mutation" {
-      OperationType::mutation
-    } else if start_token.value == "subscription" {
-      OperationType::subscription
-    } else {
-      return Err(SyntaxError {
-        message: format!("Unexpected name \"{}\".", start_token.value),
-        position: self.lexer.get_position(),
-      });
-    };
-
-    self.parse_token(TokenKind::Colon)?;
-
-    let gql_type = self.parse_named_type()?;
-
-    let end_token = gql_type.loc.end_token.clone();
-
-    Ok(OperationTypeDefinition {
-      operation,
-      gql_type,
-      loc: Loc {
-        start_token,
-        end_token,
-      },
-    })
-  }
-
-  fn parse_union_member_types(&mut self) -> Result<Vec<NamedType>, SyntaxError> {
-    if self.peek_token(None)?.kind != TokenKind::EqualsSign {
+  fn parse_union_member_types(p: &mut Parser) -> Result<Vec<NamedType>, SyntaxError> {
+    if p.peek_token(None)?.kind != TokenKind::EqualsSign {
       return Ok(vec![]);
     }
 
-    self.parse_token(TokenKind::EqualsSign)?;
-    if self.peek_token(None)?.kind == TokenKind::VerticalBar {
-      self.parse_token(TokenKind::VerticalBar)?;
+    p.parse_token(TokenKind::EqualsSign)?;
+    if p.peek_token(None)?.kind == TokenKind::VerticalBar {
+      p.parse_token(TokenKind::VerticalBar)?;
     }
 
-    let mut types = vec![self.parse_named_type()?];
-    let mut peeked = self.peek_token(None)?;
+    let mut types = vec![NamedType::parse(p)?];
+    let mut peeked = p.peek_token(None)?;
     while peeked.kind == TokenKind::VerticalBar {
-      self.parse_token(TokenKind::VerticalBar)?;
-      types.push(self.parse_named_type()?);
-      peeked = self.peek_token(None)?;
+      p.parse_token(TokenKind::VerticalBar)?;
+      types.push(NamedType::parse(p)?);
+      peeked = p.peek_token(None)?;
     }
 
     Ok(types)
   }
 
-  fn parse_enum_values_definition(
-    &mut self,
-  ) -> Result<(Vec<EnumValueDefinition>, Option<Token>), SyntaxError> {
-    if self.peek_token(None)?.kind != TokenKind::CurlyBracketOpening {
-      return Ok((vec![], None));
-    }
-
-    self.parse_token(TokenKind::CurlyBracketOpening)?;
-
-    let mut values = vec![];
-    let mut peeked = self.peek_token(Some(TokenKind::Name))?;
-    while peeked.kind != TokenKind::CurlyBracketClosing {
-      let description = if peeked.kind.equals(TokenKind::String { block: false }) {
-        Some(self.parse_string_value()?)
-      } else {
-        None
-      };
-
-      let enum_value = self.parse_enum_value()?;
-
-      let directives = self.parse_const_directives(Some(TokenKind::Name))?;
-
-      let start_token = if description != None {
-        description.as_ref().unwrap().loc.start_token.clone()
-      } else {
-        enum_value.loc.start_token.clone()
-      };
-      let end_token = if directives.len() > 0 {
-        directives.last().unwrap().loc.end_token.clone()
-      } else {
-        enum_value.loc.end_token.clone()
-      };
-
-      values.push(EnumValueDefinition {
-        description,
-        enum_value,
-        directives,
-        loc: Loc {
-          start_token,
-          end_token,
-        },
-      });
-      peeked = self.peek_token(Some(TokenKind::Name))?;
-    }
-
-    let curly_bracket_closing_token = self.parse_token(TokenKind::CurlyBracketClosing)?;
-
-    Ok((values, Some(curly_bracket_closing_token)))
-  }
-
-  fn parse_directive_location(&mut self) -> Result<DirectiveLocation, SyntaxError> {
-    let location = self.parse_token(TokenKind::Name)?;
-    let loc = Loc {
-      start_token: location.clone(),
-      end_token: location.clone(),
-    };
-    if location.value == "QUERY" {
-      Ok(DirectiveLocation {
-        name: DirectiveLocationName::QUERY,
-        loc,
-      })
-    } else if location.value == "MUTATION" {
-      Ok(DirectiveLocation {
-        name: DirectiveLocationName::MUTATION,
-        loc,
-      })
-    } else if location.value == "SUBSCRIPTION" {
-      Ok(DirectiveLocation {
-        name: DirectiveLocationName::SUBSCRIPTION,
-        loc,
-      })
-    } else if location.value == "FIELD" {
-      Ok(DirectiveLocation {
-        name: DirectiveLocationName::FIELD,
-        loc,
-      })
-    } else if location.value == "FRAGMENT_DEFINITION" {
-      Ok(DirectiveLocation {
-        name: DirectiveLocationName::FRAGMENT_DEFINITION,
-        loc,
-      })
-    } else if location.value == "FRAGMENT_SPREAD" {
-      Ok(DirectiveLocation {
-        name: DirectiveLocationName::FRAGMENT_SPREAD,
-        loc,
-      })
-    } else if location.value == "INLINE_FRAGMENT" {
-      Ok(DirectiveLocation {
-        name: DirectiveLocationName::INLINE_FRAGMENT,
-        loc,
-      })
-    } else if location.value == "VARIABLE_DEFINITION" {
-      Ok(DirectiveLocation {
-        name: DirectiveLocationName::VARIABLE_DEFINITION,
-        loc,
-      })
-    } else if location.value == "SCHEMA" {
-      Ok(DirectiveLocation {
-        name: DirectiveLocationName::SCHEMA,
-        loc,
-      })
-    } else if location.value == "SCALAR" {
-      Ok(DirectiveLocation {
-        name: DirectiveLocationName::SCALAR,
-        loc,
-      })
-    } else if location.value == "OBJECT" {
-      Ok(DirectiveLocation {
-        name: DirectiveLocationName::OBJECT,
-        loc,
-      })
-    } else if location.value == "FIELD_DEFINITION" {
-      Ok(DirectiveLocation {
-        name: DirectiveLocationName::FIELD_DEFINITION,
-        loc,
-      })
-    } else if location.value == "ARGUMENT_DEFINITION" {
-      Ok(DirectiveLocation {
-        name: DirectiveLocationName::ARGUMENT_DEFINITION,
-        loc,
-      })
-    } else if location.value == "INTERFACE" {
-      Ok(DirectiveLocation {
-        name: DirectiveLocationName::INTERFACE,
-        loc,
-      })
-    } else if location.value == "UNION" {
-      Ok(DirectiveLocation {
-        name: DirectiveLocationName::UNION,
-        loc,
-      })
-    } else if location.value == "ENUM" {
-      Ok(DirectiveLocation {
-        name: DirectiveLocationName::ENUM,
-        loc,
-      })
-    } else if location.value == "ENUM_VALUE" {
-      Ok(DirectiveLocation {
-        name: DirectiveLocationName::ENUM_VALUE,
-        loc,
-      })
-    } else if location.value == "INPUT_OBJECT" {
-      Ok(DirectiveLocation {
-        name: DirectiveLocationName::INPUT_OBJECT,
-        loc,
-      })
-    } else if location.value == "INPUT_FIELD_DEFINITION" {
-      Ok(DirectiveLocation {
-        name: DirectiveLocationName::INPUT_FIELD_DEFINITION,
-        loc,
-      })
-    } else {
-      Err(SyntaxError {
-        message: format!("Unexpected {}.", location),
-        position: self.lexer.get_position(),
-      })
-    }
-  }
-
-  fn parse_directive_locations(&mut self) -> Result<Vec1<DirectiveLocation>, SyntaxError> {
-    if self.peek_token(Some(TokenKind::Name))?.kind == TokenKind::VerticalBar {
-      self.parse_token(TokenKind::VerticalBar)?;
-    }
-
-    let mut locations = vec1![self.parse_directive_location()?];
-    let mut peeked = self.peek_token(None)?;
-    while peeked.kind == TokenKind::VerticalBar {
-      self.parse_token(TokenKind::VerticalBar)?;
-      locations.push(self.parse_directive_location()?);
-      peeked = self.peek_token(None)?;
-    }
-
-    Ok(locations)
-  }
-
-  fn parse_operation_definition(&mut self) -> Result<Definition, SyntaxError> {
-    let peeked = self.peek_token(None)?;
+  fn parse_operation_definition(p: &mut Parser) -> Result<Self, SyntaxError> {
+    let peeked = p.peek_token(None)?;
     match peeked.kind {
       TokenKind::CurlyBracketOpening => {
-        let selection_set = self.parse_selection_set()?;
+        let selection_set = SelectionSet::parse(p)?;
 
         let start_token = selection_set.loc.start_token.clone();
         let end_token = selection_set.loc.end_token.clone();
@@ -1706,7 +1656,7 @@ impl Parser<'_> {
         })
       }
       TokenKind::Name => {
-        let start_token = self.parse_token(TokenKind::Name)?;
+        let start_token = p.parse_token(TokenKind::Name)?;
         let operation = if start_token.value == "query" {
           OperationType::query
         } else if start_token.value == "mutation" {
@@ -1716,28 +1666,21 @@ impl Parser<'_> {
         } else {
           return Err(SyntaxError {
             message: format!("Unexpected {}.", start_token),
-            position: self.lexer.get_position(),
+            position: p.lexer.get_position(),
           });
         };
 
-        let name = if self.peek_token(Some(TokenKind::CurlyBracketOpening))?.kind == TokenKind::Name
-        {
-          Some(self.parse_name()?)
+        let name = if p.peek_token(Some(TokenKind::CurlyBracketOpening))?.kind == TokenKind::Name {
+          Some(Name::parse(p)?)
         } else {
           None
         };
 
-        let variable_definitions = if self.peek_token(Some(TokenKind::CurlyBracketOpening))?.kind
-          == TokenKind::RoundBracketOpening
-        {
-          self.parse_variable_definitions()?
-        } else {
-          vec![]
-        };
+        let variable_definitions = VariableDefinition::parse_many(p)?;
 
-        let directives = self.parse_directives(Some(TokenKind::CurlyBracketOpening))?;
+        let directives = Directive::parse_many(p, Some(TokenKind::CurlyBracketOpening))?;
 
-        let selection_set = self.parse_selection_set()?;
+        let selection_set = SelectionSet::parse(p)?;
         let end_token = selection_set.loc.end_token.clone();
 
         Ok(Definition::OperationDefinition {
@@ -1754,39 +1697,39 @@ impl Parser<'_> {
       }
       _ => Err(SyntaxError {
         message: format!("Unexpected {}.", peeked),
-        position: self.lexer.get_position(),
+        position: p.lexer.get_position(),
       }),
     }
   }
 
-  fn parse_fragment_definition(&mut self) -> Result<Definition, SyntaxError> {
-    let start_token = self.parse_token(TokenKind::Name)?;
+  fn parse_fragment_definition(p: &mut Parser) -> Result<Self, SyntaxError> {
+    let start_token = p.parse_token(TokenKind::Name)?;
 
-    let name = self.parse_name()?;
+    let name = Name::parse(p)?;
 
-    let on = self.next_token(None)?;
+    let on = p.next_token(None)?;
     match on.kind {
       TokenKind::Name => {
         if on.value != "on" {
           return Err(SyntaxError {
             message: format!("Expected \"on\", found {}.", on),
-            position: self.lexer.get_position(),
+            position: p.lexer.get_position(),
           });
         }
       }
       _ => {
         return Err(SyntaxError {
           message: format!("Expected \"on\", found {}.", on),
-          position: self.lexer.get_position(),
+          position: p.lexer.get_position(),
         })
       }
     }
 
-    let type_condition = self.parse_named_type()?;
+    let type_condition = NamedType::parse(p)?;
 
-    let directives = self.parse_directives(Some(TokenKind::CurlyBracketOpening))?;
+    let directives = Directive::parse_many(p, Some(TokenKind::CurlyBracketOpening))?;
 
-    let selection_set = self.parse_selection_set()?;
+    let selection_set = SelectionSet::parse(p)?;
 
     let end_token = selection_set.loc.end_token.clone();
 
@@ -1803,27 +1746,27 @@ impl Parser<'_> {
   }
 
   fn parse_schema_definition(
-    &mut self,
+    p: &mut Parser,
     description: Option<StringValue>,
-  ) -> Result<Definition, SyntaxError> {
-    let schema = self.parse_token(TokenKind::Name)?;
+  ) -> Result<Self, SyntaxError> {
+    let schema = p.parse_token(TokenKind::Name)?;
 
-    let directives = self.parse_const_directives(Some(TokenKind::CurlyBracketOpening))?;
+    let directives = ConstDirective::parse_many(p, Some(TokenKind::CurlyBracketOpening))?;
 
-    self.parse_token(TokenKind::CurlyBracketOpening)?;
+    p.parse_token(TokenKind::CurlyBracketOpening)?;
 
-    let mut operation_types = vec1![self.parse_operation_type_definition()?];
-    let mut peeked = self.peek_token(Some(TokenKind::Name))?;
+    let mut operation_types = vec1![OperationTypeDefinition::parse(p)?];
+    let mut peeked = p.peek_token(Some(TokenKind::Name))?;
     while peeked.kind != TokenKind::CurlyBracketClosing {
-      operation_types.push(self.parse_operation_type_definition()?);
-      peeked = self.peek_token(Some(TokenKind::Name))?;
+      operation_types.push(OperationTypeDefinition::parse(p)?);
+      peeked = p.peek_token(Some(TokenKind::Name))?;
     }
 
     let start_token = match description {
       None => schema,
       Some(ref description) => description.loc.start_token.clone(),
     };
-    let end_token = self.parse_token(TokenKind::CurlyBracketClosing)?;
+    let end_token = p.parse_token(TokenKind::CurlyBracketClosing)?;
 
     Ok(Definition::SchemaDefinition {
       description,
@@ -1837,14 +1780,14 @@ impl Parser<'_> {
   }
 
   fn parse_scalar_type_definition(
-    &mut self,
+    p: &mut Parser,
     description: Option<StringValue>,
-  ) -> Result<Definition, SyntaxError> {
-    let scalar = self.parse_token(TokenKind::Name)?;
+  ) -> Result<Self, SyntaxError> {
+    let scalar = p.parse_token(TokenKind::Name)?;
 
-    let name = self.parse_name()?;
+    let name = Name::parse(p)?;
 
-    let directives = self.parse_const_directives(Some(TokenKind::CurlyBracketOpening))?;
+    let directives = ConstDirective::parse_many(p, Some(TokenKind::CurlyBracketOpening))?;
 
     let start_token = match description {
       None => scalar,
@@ -1868,18 +1811,18 @@ impl Parser<'_> {
   }
 
   fn parse_object_type_definition(
-    &mut self,
+    p: &mut Parser,
     description: Option<StringValue>,
-  ) -> Result<Definition, SyntaxError> {
-    let name_token = self.parse_token(TokenKind::Name)?;
+  ) -> Result<Self, SyntaxError> {
+    let name_token = p.parse_token(TokenKind::Name)?;
 
-    let name = self.parse_name()?;
+    let name = Name::parse(p)?;
 
-    let interfaces = self.parse_implements_interface()?;
+    let interfaces = Definition::parse_implements_interface(p)?;
 
-    let directives = self.parse_const_directives(Some(TokenKind::CurlyBracketOpening))?;
+    let directives = ConstDirective::parse_many(p, Some(TokenKind::CurlyBracketOpening))?;
 
-    let (fields, curly_bracket_closing_token) = self.parse_field_definitions()?;
+    let (fields, curly_bracket_closing_token) = FieldDefinition::parse_many(p)?;
 
     let start_token = match description {
       None => name_token,
@@ -1909,18 +1852,18 @@ impl Parser<'_> {
   }
 
   fn parse_interface_type_definition(
-    &mut self,
+    p: &mut Parser,
     description: Option<StringValue>,
-  ) -> Result<Definition, SyntaxError> {
-    let name_token = self.parse_token(TokenKind::Name)?;
+  ) -> Result<Self, SyntaxError> {
+    let name_token = p.parse_token(TokenKind::Name)?;
 
-    let name = self.parse_name()?;
+    let name = Name::parse(p)?;
 
-    let interfaces = self.parse_implements_interface()?;
+    let interfaces = Definition::parse_implements_interface(p)?;
 
-    let directives = self.parse_const_directives(Some(TokenKind::CurlyBracketOpening))?;
+    let directives = ConstDirective::parse_many(p, Some(TokenKind::CurlyBracketOpening))?;
 
-    let (fields, curly_bracket_closing_token) = self.parse_field_definitions()?;
+    let (fields, curly_bracket_closing_token) = FieldDefinition::parse_many(p)?;
 
     let start_token = match description {
       None => name_token,
@@ -1950,21 +1893,21 @@ impl Parser<'_> {
   }
 
   fn parse_union_type_definition(
-    &mut self,
+    p: &mut Parser,
     description: Option<StringValue>,
-  ) -> Result<Definition, SyntaxError> {
-    let name_token = self.parse_token(TokenKind::Name)?;
+  ) -> Result<Self, SyntaxError> {
+    let name_token = p.parse_token(TokenKind::Name)?;
 
-    let name = self.parse_name()?;
+    let name = Name::parse(p)?;
 
     let start_token = match description {
       None => name_token,
       Some(ref description) => description.loc.start_token.clone(),
     };
 
-    let directives = self.parse_const_directives(Some(TokenKind::CurlyBracketOpening))?;
+    let directives = ConstDirective::parse_many(p, Some(TokenKind::CurlyBracketOpening))?;
 
-    let types = self.parse_union_member_types()?;
+    let types = Definition::parse_union_member_types(p)?;
 
     let end_token = if types.len() > 0 {
       types.last().unwrap().loc.end_token.clone()
@@ -1987,21 +1930,21 @@ impl Parser<'_> {
   }
 
   fn parse_enum_type_definition(
-    &mut self,
+    p: &mut Parser,
     description: Option<StringValue>,
-  ) -> Result<Definition, SyntaxError> {
-    let name_token = self.parse_token(TokenKind::Name)?;
+  ) -> Result<Self, SyntaxError> {
+    let name_token = p.parse_token(TokenKind::Name)?;
 
-    let name = self.parse_name()?;
+    let name = Name::parse(p)?;
 
     let start_token = match description {
       None => name_token,
       Some(ref description) => description.loc.start_token.clone(),
     };
 
-    let directives = self.parse_const_directives(Some(TokenKind::CurlyBracketOpening))?;
+    let directives = ConstDirective::parse_many(p, Some(TokenKind::CurlyBracketOpening))?;
 
-    let (values, curly_bracket_closing_token) = self.parse_enum_values_definition()?;
+    let (values, curly_bracket_closing_token) = EnumValueDefinition::parse_many(p)?;
 
     let end_token = if curly_bracket_closing_token != None {
       curly_bracket_closing_token.unwrap()
@@ -2024,18 +1967,19 @@ impl Parser<'_> {
   }
 
   fn parse_input_object_type_definition(
-    &mut self,
+    p: &mut Parser,
     description: Option<StringValue>,
-  ) -> Result<Definition, SyntaxError> {
-    let name_token = self.parse_token(TokenKind::Name)?;
+  ) -> Result<Self, SyntaxError> {
+    let name_token = p.parse_token(TokenKind::Name)?;
 
-    let name = self.parse_name()?;
+    let name = Name::parse(p)?;
 
-    let interfaces = self.parse_implements_interface()?;
+    let interfaces = Definition::parse_implements_interface(p)?;
 
-    let directives = self.parse_const_directives(Some(TokenKind::CurlyBracketOpening))?;
+    let directives = ConstDirective::parse_many(p, Some(TokenKind::CurlyBracketOpening))?;
 
-    let (fields, curly_bracket_closing_token) = self.parse_input_value_definitions(
+    let (fields, curly_bracket_closing_token) = InputValueDefinition::parse_many(
+      p,
       TokenKind::CurlyBracketOpening,
       TokenKind::CurlyBracketClosing,
     )?;
@@ -2067,37 +2011,38 @@ impl Parser<'_> {
   }
 
   fn parse_directive_definition(
-    &mut self,
+    p: &mut Parser,
     description: Option<StringValue>,
-  ) -> Result<Definition, SyntaxError> {
-    let name_token = self.parse_token(TokenKind::Name)?;
+  ) -> Result<Self, SyntaxError> {
+    let name_token = p.parse_token(TokenKind::Name)?;
 
-    self.parse_token(TokenKind::AtSign)?;
+    p.parse_token(TokenKind::AtSign)?;
 
-    let name = self.parse_name()?;
+    let name = Name::parse(p)?;
 
-    let (arguments, _) = self.parse_input_value_definitions(
+    let (arguments, _) = InputValueDefinition::parse_many(
+      p,
       TokenKind::RoundBracketOpening,
       TokenKind::RoundBracketClosing,
     )?;
 
-    let peeked = self.peek_token(Some(TokenKind::Name))?;
+    let peeked = p.peek_token(Some(TokenKind::Name))?;
     let repeatable = if peeked.kind == TokenKind::Name && peeked.value == "repeatable" {
-      self.parse_token(TokenKind::Name)?;
+      p.parse_token(TokenKind::Name)?;
       true
     } else {
       false
     };
 
-    let on = self.parse_token(TokenKind::Name)?;
+    let on = p.parse_token(TokenKind::Name)?;
     if on.value != "on" {
       return Err(SyntaxError {
         message: format!("Expected \"on\", found {}.", on),
-        position: self.lexer.get_position(),
+        position: p.lexer.get_position(),
       });
     }
 
-    let locations = self.parse_directive_locations()?;
+    let locations = DirectiveLocation::parse_many(p)?;
 
     let start_token = match description {
       None => name_token,
@@ -2118,57 +2063,57 @@ impl Parser<'_> {
     })
   }
 
-  fn parse_schema_extension(&mut self, start_token: Token) -> Result<Definition, SyntaxError> {
-    self.parse_token(TokenKind::Name)?;
+  fn parse_schema_extension(p: &mut Parser, start_token: Token) -> Result<Self, SyntaxError> {
+    p.parse_token(TokenKind::Name)?;
 
-    let directives = self.parse_const_directives(Some(TokenKind::CurlyBracketOpening))?;
+    let directives = ConstDirective::parse_many(p, Some(TokenKind::CurlyBracketOpening))?;
 
-    let mut end_token = None;
-
-    let operation_types =
-      if directives.len() == 0 || self.peek_token(None)?.kind == TokenKind::CurlyBracketOpening {
-        self.next_token(None)?;
-        let mut operation_type_definitions = vec![self.parse_operation_type_definition()?];
-        let mut peeked = self.peek_token(Some(TokenKind::Name))?;
+    let (operation_types, closing_curly_bracket_token) =
+      if directives.len() == 0 || p.peek_token(None)?.kind == TokenKind::CurlyBracketOpening {
+        p.next_token(None)?;
+        let mut operation_type_definitions = vec![OperationTypeDefinition::parse(p)?];
+        let mut peeked = p.peek_token(Some(TokenKind::Name))?;
         while peeked.kind != TokenKind::CurlyBracketClosing {
-          operation_type_definitions.push(self.parse_operation_type_definition()?);
-          peeked = self.peek_token(Some(TokenKind::Name))?;
+          operation_type_definitions.push(OperationTypeDefinition::parse(p)?);
+          peeked = p.peek_token(Some(TokenKind::Name))?;
         }
-        end_token = Some(self.parse_token(TokenKind::CurlyBracketClosing)?);
-        operation_type_definitions
+        (
+          operation_type_definitions,
+          Some(p.parse_token(TokenKind::CurlyBracketClosing)?),
+        )
       } else {
-        vec![]
+        (vec![], None)
       };
 
-    if end_token == None {
-      end_token = if operation_types.len() > 0 {
-        Some(operation_types.last().unwrap().loc.end_token.clone())
-      } else {
-        Some(directives.last().unwrap().loc.end_token.clone())
-      };
-    }
+    let end_token = if closing_curly_bracket_token != None {
+      closing_curly_bracket_token.unwrap()
+    } else if operation_types.len() > 0 {
+      operation_types.last().unwrap().loc.end_token.clone()
+    } else {
+      directives.last().unwrap().loc.end_token.clone()
+    };
 
     Ok(Definition::SchemaExtension {
       directives,
       operation_types,
       loc: Loc {
         start_token,
-        end_token: end_token.unwrap(),
+        end_token,
       },
     })
   }
 
-  fn parse_scalar_extension(&mut self, start_token: Token) -> Result<Definition, SyntaxError> {
-    self.parse_token(TokenKind::Name)?;
+  fn parse_scalar_extension(p: &mut Parser, start_token: Token) -> Result<Self, SyntaxError> {
+    p.parse_token(TokenKind::Name)?;
 
-    let name = self.parse_name()?;
+    let name = Name::parse(p)?;
 
-    let directives = self.parse_const_directives(None)?;
+    let directives = ConstDirective::parse_many(p, None)?;
 
     if directives.len() == 0 {
       return Err(SyntaxError {
-        message: format!(""),
-        position: self.lexer.get_position(),
+        message: format!("Unexpected {}.", p.peek_token(None)?),
+        position: p.lexer.get_position(),
       });
     }
 
@@ -2184,16 +2129,16 @@ impl Parser<'_> {
     })
   }
 
-  fn parse_object_type_extension(&mut self, start_token: Token) -> Result<Definition, SyntaxError> {
-    self.parse_token(TokenKind::Name)?;
+  fn parse_object_type_extension(p: &mut Parser, start_token: Token) -> Result<Self, SyntaxError> {
+    p.parse_token(TokenKind::Name)?;
 
-    let name = self.parse_name()?;
+    let name = Name::parse(p)?;
 
-    let interfaces = self.parse_implements_interface()?;
+    let interfaces = Definition::parse_implements_interface(p)?;
 
-    let directives = self.parse_const_directives(None)?;
+    let directives = ConstDirective::parse_many(p, None)?;
 
-    let (fields, curly_bracket_closing_token) = self.parse_field_definitions()?;
+    let (fields, curly_bracket_closing_token) = FieldDefinition::parse_many(p)?;
 
     let end_token = if curly_bracket_closing_token != None {
       curly_bracket_closing_token.unwrap()
@@ -2216,18 +2161,18 @@ impl Parser<'_> {
   }
 
   fn parse_interface_type_extension(
-    &mut self,
+    p: &mut Parser,
     start_token: Token,
-  ) -> Result<Definition, SyntaxError> {
-    self.parse_token(TokenKind::Name)?;
+  ) -> Result<Self, SyntaxError> {
+    p.parse_token(TokenKind::Name)?;
 
-    let name = self.parse_name()?;
+    let name = Name::parse(p)?;
 
-    let interfaces = self.parse_implements_interface()?;
+    let interfaces = Definition::parse_implements_interface(p)?;
 
-    let directives = self.parse_const_directives(None)?;
+    let directives = ConstDirective::parse_many(p, None)?;
 
-    let (fields, curly_bracket_closing_token) = self.parse_field_definitions()?;
+    let (fields, curly_bracket_closing_token) = FieldDefinition::parse_many(p)?;
 
     let end_token = if curly_bracket_closing_token != None {
       curly_bracket_closing_token.unwrap()
@@ -2249,14 +2194,14 @@ impl Parser<'_> {
     })
   }
 
-  fn parse_union_type_extension(&mut self, start_token: Token) -> Result<Definition, SyntaxError> {
-    self.parse_token(TokenKind::Name)?;
+  fn parse_union_type_extension(p: &mut Parser, start_token: Token) -> Result<Self, SyntaxError> {
+    p.parse_token(TokenKind::Name)?;
 
-    let name = self.parse_name()?;
+    let name = Name::parse(p)?;
 
-    let directives = self.parse_const_directives(Some(TokenKind::CurlyBracketOpening))?;
+    let directives = ConstDirective::parse_many(p, Some(TokenKind::CurlyBracketOpening))?;
 
-    let types = self.parse_union_member_types()?;
+    let types = Definition::parse_union_member_types(p)?;
 
     let end_token = if types.len() > 0 {
       types.last().unwrap().loc.end_token.clone()
@@ -2277,14 +2222,14 @@ impl Parser<'_> {
     })
   }
 
-  fn parse_enum_type_extension(&mut self, start_token: Token) -> Result<Definition, SyntaxError> {
-    self.parse_token(TokenKind::Name)?;
+  fn parse_enum_type_extension(p: &mut Parser, start_token: Token) -> Result<Self, SyntaxError> {
+    p.parse_token(TokenKind::Name)?;
 
-    let name = self.parse_name()?;
+    let name = Name::parse(p)?;
 
-    let directives = self.parse_const_directives(Some(TokenKind::CurlyBracketOpening))?;
+    let directives = ConstDirective::parse_many(p, Some(TokenKind::CurlyBracketOpening))?;
 
-    let (values, curly_bracket_closing_token) = self.parse_enum_values_definition()?;
+    let (values, curly_bracket_closing_token) = EnumValueDefinition::parse_many(p)?;
 
     let end_token = if curly_bracket_closing_token != None {
       curly_bracket_closing_token.unwrap()
@@ -2306,18 +2251,19 @@ impl Parser<'_> {
   }
 
   fn parse_input_object_type_extension(
-    &mut self,
+    p: &mut Parser,
     start_token: Token,
-  ) -> Result<Definition, SyntaxError> {
-    self.parse_token(TokenKind::Name)?;
+  ) -> Result<Self, SyntaxError> {
+    p.parse_token(TokenKind::Name)?;
 
-    let name = self.parse_name()?;
+    let name = Name::parse(p)?;
 
-    let interfaces = self.parse_implements_interface()?;
+    let interfaces = Definition::parse_implements_interface(p)?;
 
-    let directives = self.parse_const_directives(Some(TokenKind::CurlyBracketOpening))?;
+    let directives = ConstDirective::parse_many(p, Some(TokenKind::CurlyBracketOpening))?;
 
-    let (fields, curly_bracket_closing_token) = self.parse_input_value_definitions(
+    let (fields, curly_bracket_closing_token) = InputValueDefinition::parse_many(
+      p,
       TokenKind::CurlyBracketOpening,
       TokenKind::CurlyBracketClosing,
     )?;
@@ -2343,71 +2289,107 @@ impl Parser<'_> {
     })
   }
 
-  fn parse_definition(&mut self) -> Result<Definition, SyntaxError> {
-    let peeked = self.peek_token(None)?;
-    let is_extension = peeked.kind == TokenKind::Name && peeked.value == "extend";
-    if is_extension {
+  fn parse(p: &mut Parser) -> Result<Self, SyntaxError> {
+    let peeked = p.peek_token(None)?;
+    if peeked.kind == TokenKind::Name && peeked.value == "extend" {
       // Skip the "extend" keyword
-      let start_token = self.parse_token(TokenKind::Name)?;
+      let start_token = p.parse_token(TokenKind::Name)?;
 
       // An extension must be followed by a type keyworkd
-      let peeked = self.peek_token(None)?;
+      let peeked = p.peek_token(None)?;
       return match peeked.kind {
         TokenKind::Name => {
           if peeked.value == "schema" {
-            self.parse_schema_extension(start_token)
+            Definition::parse_schema_extension(p, start_token)
           } else if peeked.value == "scalar" {
-            self.parse_scalar_extension(start_token)
+            Definition::parse_scalar_extension(p, start_token)
           } else if peeked.value == "type" {
-            self.parse_object_type_extension(start_token)
+            Definition::parse_object_type_extension(p, start_token)
           } else if peeked.value == "interface" {
-            self.parse_interface_type_extension(start_token)
+            Definition::parse_interface_type_extension(p, start_token)
           } else if peeked.value == "union" {
-            self.parse_union_type_extension(start_token)
+            Definition::parse_union_type_extension(p, start_token)
           } else if peeked.value == "enum" {
-            self.parse_enum_type_extension(start_token)
+            Definition::parse_enum_type_extension(p, start_token)
           } else if peeked.value == "input" {
-            self.parse_input_object_type_extension(start_token)
+            Definition::parse_input_object_type_extension(p, start_token)
           } else {
             Err(SyntaxError {
               message: format!("Unexpected {}", peeked),
-              position: self.lexer.get_position(),
+              position: p.lexer.get_position(),
             })
           }
         }
         _ => Err(SyntaxError {
           message: format!("Unexpected {}", peeked),
-          position: self.lexer.get_position(),
+          position: p.lexer.get_position(),
         }),
       };
     }
 
-    let description = self.parse_description()?;
+    let description = if p
+      .peek_token(None)?
+      .kind
+      .equals(TokenKind::String { block: false })
+    {
+      let string_value = StringValue::parse(p)?;
 
-    let token = self.peek_token(None)?;
+      // A description must be followed by a type system definition
+      let peeked = p.peek_token(None)?;
+      match peeked.kind {
+        TokenKind::Name => {
+          if peeked.value == "schema"
+            || peeked.value == "scalar"
+            || peeked.value == "type"
+            || peeked.value == "interface"
+            || peeked.value == "union"
+            || peeked.value == "enum"
+            || peeked.value == "input"
+            || peeked.value == "directive"
+          {
+            Some(string_value)
+          } else {
+            return Err(SyntaxError {
+              message: format!("Unexpected {}", peeked),
+              position: p.lexer.get_position(),
+            });
+          }
+        }
+        _ => {
+          return Err(SyntaxError {
+            message: format!("Unexpected {}", peeked),
+            position: p.lexer.get_position(),
+          })
+        }
+      }
+    } else {
+      None
+    };
+
+    let token = p.peek_token(None)?;
     match token.kind {
-      TokenKind::CurlyBracketOpening => self.parse_operation_definition(),
+      TokenKind::CurlyBracketOpening => Definition::parse_operation_definition(p),
       TokenKind::Name => {
         if token.value == "query" || token.value == "mutation" || token.value == "subscription" {
-          self.parse_operation_definition()
+          Definition::parse_operation_definition(p)
         } else if token.value == "fragment" {
-          self.parse_fragment_definition()
+          Definition::parse_fragment_definition(p)
         } else if token.value == "schema" {
-          self.parse_schema_definition(description)
+          Definition::parse_schema_definition(p, description)
         } else if token.value == "scalar" {
-          self.parse_scalar_type_definition(description)
+          Definition::parse_scalar_type_definition(p, description)
         } else if token.value == "type" {
-          self.parse_object_type_definition(description)
+          Definition::parse_object_type_definition(p, description)
         } else if token.value == "interface" {
-          self.parse_interface_type_definition(description)
+          Definition::parse_interface_type_definition(p, description)
         } else if token.value == "union" {
-          self.parse_union_type_definition(description)
+          Definition::parse_union_type_definition(p, description)
         } else if token.value == "enum" {
-          self.parse_enum_type_definition(description)
+          Definition::parse_enum_type_definition(p, description)
         } else if token.value == "input" {
-          self.parse_input_object_type_definition(description)
+          Definition::parse_input_object_type_definition(p, description)
         } else if token.value == "directive" {
-          self.parse_directive_definition(description)
+          Definition::parse_directive_definition(p, description)
         } else {
           Err(SyntaxError {
             message: format!("Unexpected {}.", token),
@@ -2421,15 +2403,23 @@ impl Parser<'_> {
       }),
     }
   }
+}
 
-  pub fn parse_document(&mut self) -> Result<Document, SyntaxError> {
-    let start_token = self.parse_token(TokenKind::SOF)?;
-    let mut definitions = vec1![self.parse_definition()?];
-    while self.lexer.has_more() {
-      definitions.push(self.parse_definition()?);
+#[derive(Debug, PartialEq)]
+pub struct Document {
+  pub definitions: Vec1<Definition>,
+  pub loc: Loc,
+}
+
+impl Document {
+  pub fn parse(p: &mut Parser) -> Result<Self, SyntaxError> {
+    let start_token = p.parse_token(TokenKind::SOF)?;
+    let mut definitions = vec1![Definition::parse(p)?];
+    while p.lexer.has_more() {
+      definitions.push(Definition::parse(p)?);
     }
 
-    let end_token = self.parse_token(TokenKind::EOF)?;
+    let end_token = p.parse_token(TokenKind::EOF)?;
     Ok(Document {
       definitions,
       loc: Loc {
@@ -2441,7 +2431,7 @@ impl Parser<'_> {
 }
 
 pub fn parse(query: &str) -> Result<Document, SyntaxError> {
-  Parser::new(query).parse_document()
+  Document::parse(&mut Parser::new(query))
 }
 
 #[cfg(test)]
