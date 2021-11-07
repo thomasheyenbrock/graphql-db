@@ -312,7 +312,7 @@ pub struct EnumValueDefinition {
 
 #[allow(non_camel_case_types)]
 #[derive(Debug, PartialEq)]
-pub enum DirectiveLocation {
+pub enum DirectiveLocationName {
   // Executable
   QUERY,
   MUTATION,
@@ -334,6 +334,12 @@ pub enum DirectiveLocation {
   ENUM_VALUE,
   INPUT_OBJECT,
   INPUT_FIELD_DEFINITION,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct DirectiveLocation {
+  pub name: DirectiveLocationName,
+  pub loc: Loc,
 }
 
 #[derive(Debug, PartialEq)]
@@ -1547,6 +1553,131 @@ impl Parser<'_> {
     Ok((values, Some(curly_bracket_closing_token)))
   }
 
+  fn parse_directive_location(&mut self) -> Result<DirectiveLocation, SyntaxError> {
+    let location = self.parse_token(TokenKind::Name)?;
+    let loc = Loc {
+      start_token: location.clone(),
+      end_token: location.clone(),
+    };
+    if location.value == "QUERY" {
+      Ok(DirectiveLocation {
+        name: DirectiveLocationName::QUERY,
+        loc,
+      })
+    } else if location.value == "MUTATION" {
+      Ok(DirectiveLocation {
+        name: DirectiveLocationName::MUTATION,
+        loc,
+      })
+    } else if location.value == "SUBSCRIPTION" {
+      Ok(DirectiveLocation {
+        name: DirectiveLocationName::SUBSCRIPTION,
+        loc,
+      })
+    } else if location.value == "FIELD" {
+      Ok(DirectiveLocation {
+        name: DirectiveLocationName::FIELD,
+        loc,
+      })
+    } else if location.value == "FRAGMENT_DEFINITION" {
+      Ok(DirectiveLocation {
+        name: DirectiveLocationName::FRAGMENT_DEFINITION,
+        loc,
+      })
+    } else if location.value == "FRAGMENT_SPREAD" {
+      Ok(DirectiveLocation {
+        name: DirectiveLocationName::FRAGMENT_SPREAD,
+        loc,
+      })
+    } else if location.value == "INLINE_FRAGMENT" {
+      Ok(DirectiveLocation {
+        name: DirectiveLocationName::INLINE_FRAGMENT,
+        loc,
+      })
+    } else if location.value == "VARIABLE_DEFINITION" {
+      Ok(DirectiveLocation {
+        name: DirectiveLocationName::VARIABLE_DEFINITION,
+        loc,
+      })
+    } else if location.value == "SCHEMA" {
+      Ok(DirectiveLocation {
+        name: DirectiveLocationName::SCHEMA,
+        loc,
+      })
+    } else if location.value == "SCALAR" {
+      Ok(DirectiveLocation {
+        name: DirectiveLocationName::SCALAR,
+        loc,
+      })
+    } else if location.value == "OBJECT" {
+      Ok(DirectiveLocation {
+        name: DirectiveLocationName::OBJECT,
+        loc,
+      })
+    } else if location.value == "FIELD_DEFINITION" {
+      Ok(DirectiveLocation {
+        name: DirectiveLocationName::FIELD_DEFINITION,
+        loc,
+      })
+    } else if location.value == "ARGUMENT_DEFINITION" {
+      Ok(DirectiveLocation {
+        name: DirectiveLocationName::ARGUMENT_DEFINITION,
+        loc,
+      })
+    } else if location.value == "INTERFACE" {
+      Ok(DirectiveLocation {
+        name: DirectiveLocationName::INTERFACE,
+        loc,
+      })
+    } else if location.value == "UNION" {
+      Ok(DirectiveLocation {
+        name: DirectiveLocationName::UNION,
+        loc,
+      })
+    } else if location.value == "ENUM" {
+      Ok(DirectiveLocation {
+        name: DirectiveLocationName::ENUM,
+        loc,
+      })
+    } else if location.value == "ENUM_VALUE" {
+      Ok(DirectiveLocation {
+        name: DirectiveLocationName::ENUM_VALUE,
+        loc,
+      })
+    } else if location.value == "INPUT_OBJECT" {
+      Ok(DirectiveLocation {
+        name: DirectiveLocationName::INPUT_OBJECT,
+        loc,
+      })
+    } else if location.value == "INPUT_FIELD_DEFINITION" {
+      Ok(DirectiveLocation {
+        name: DirectiveLocationName::INPUT_FIELD_DEFINITION,
+        loc,
+      })
+    } else {
+      Err(SyntaxError {
+        message: format!("Unexpected {}.", location),
+        position: self.lexer.get_position(),
+      })
+    }
+  }
+
+  fn parse_directive_locations(&mut self) -> Result<Vec1<DirectiveLocation>, SyntaxError> {
+    if self.peek_token(Some(TokenKind::Name))?.kind == TokenKind::VerticalBar {
+      self.parse_token(TokenKind::VerticalBar)?;
+    }
+
+    let mut locations = vec1![self.parse_directive_location()?];
+    let mut peeked = self.peek_token(None)?;
+    while peeked.kind == TokenKind::VerticalBar {
+      self.parse_token(TokenKind::VerticalBar)?;
+      locations.push(self.parse_directive_location()?);
+      peeked = self.peek_token(None)?;
+    }
+
+    Ok(locations)
+  }
+
   fn parse_operation_definition(&mut self) -> Result<Definition, SyntaxError> {
     let peeked = self.peek_token(None)?;
     match peeked.kind {
@@ -1933,9 +2064,51 @@ impl Parser<'_> {
     &mut self,
     description: Option<StringValue>,
   ) -> Result<Definition, SyntaxError> {
-    Err(SyntaxError {
-      message: String::from("TODO:"),
-      position: 999,
+    let name_token = self.parse_token(TokenKind::Name)?;
+
+    self.parse_token(TokenKind::AtSign)?;
+
+    let name = self.parse_name()?;
+
+    let (arguments, _) = self.parse_input_value_definitions(
+      TokenKind::RoundBracketOpening,
+      TokenKind::RoundBracketClosing,
+    )?;
+
+    let peeked = self.peek_token(Some(TokenKind::Name))?;
+    let repeatable = if peeked.kind == TokenKind::Name && peeked.value == "repeatable" {
+      self.parse_token(TokenKind::Name)?;
+      true
+    } else {
+      false
+    };
+
+    let on = self.parse_token(TokenKind::Name)?;
+    if on.value != "on" {
+      return Err(SyntaxError {
+        message: format!("Expected \"on\", found {}.", on),
+        position: self.lexer.get_position(),
+      });
+    }
+
+    let locations = self.parse_directive_locations()?;
+
+    let start_token = match description {
+      None => name_token,
+      Some(ref description) => description.loc.start_token.clone(),
+    };
+    let end_token = locations.last().loc.end_token.clone();
+
+    Ok(Definition::DirectiveDefinition {
+      description,
+      name,
+      arguments,
+      repeatable,
+      locations,
+      loc: Loc {
+        start_token,
+        end_token,
+      },
     })
   }
 

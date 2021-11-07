@@ -921,6 +921,28 @@ fn transform_enum_value_definition<'a>(
   Ok(obj)
 }
 
+fn transform_directive_location<'a>(
+  cx: &mut CallContext<'a, JsObject>,
+  directive_location: &DirectiveLocation,
+) -> JsResult<'a, JsObject> {
+  // graphql-js parses these as `Name` nodes
+  let obj = cx.empty_object();
+  let kind = cx.string("Name");
+  obj.set(cx, "kind", kind)?;
+
+  let value = cx.string(format!("{:?}", directive_location.name));
+  obj.set(cx, "value", value)?;
+
+  let loc = cx.empty_object();
+  let start = cx.number(directive_location.loc.start_token.start as u32);
+  loc.set(cx, "start", start)?;
+  let end = cx.number(directive_location.loc.end_token.end as u32);
+  loc.set(cx, "end", end)?;
+  obj.set(cx, "loc", loc)?;
+
+  Ok(obj)
+}
+
 fn transform_definition<'a>(
   cx: &mut CallContext<'a, JsObject>,
   definition: &Definition,
@@ -1330,6 +1352,55 @@ fn transform_definition<'a>(
       t_loc.set(cx, "end", end)?;
       obj.set(cx, "loc", t_loc)?;
     }
+    Definition::DirectiveDefinition {
+      description,
+      name,
+      arguments,
+      repeatable,
+      locations,
+      loc,
+    } => {
+      let kind = cx.string("DirectiveDefinition");
+      obj.set(cx, "kind", kind)?;
+
+      match description {
+        None => {
+          let t_description = cx.undefined();
+          obj.set(cx, "description", t_description)?;
+        }
+        Some(description) => {
+          let t_description = transform_string_value(cx, description)?;
+          obj.set(cx, "description", t_description)?;
+        }
+      };
+
+      let t_name = transform_name(cx, name)?;
+      obj.set(cx, "name", t_name)?;
+
+      let t_arguments = cx.empty_array();
+      for (index, argument) in arguments.iter().enumerate() {
+        let transformed_argument = transform_input_value_definition(cx, argument)?;
+        t_arguments.set(cx, index as u32, transformed_argument)?;
+      }
+      obj.set(cx, "arguments", t_arguments)?;
+
+      let t_repeatable = cx.boolean(*repeatable);
+      obj.set(cx, "repeatable", t_repeatable)?;
+
+      let t_locations = cx.empty_array();
+      for (index, location) in locations.iter().enumerate() {
+        let transformed_location = transform_directive_location(cx, location)?;
+        t_locations.set(cx, index as u32, transformed_location)?;
+      }
+      obj.set(cx, "locations", t_locations)?;
+
+      let t_loc = cx.empty_object();
+      let start = cx.number(loc.start_token.start as u32);
+      t_loc.set(cx, "start", start)?;
+      let end = cx.number(loc.end_token.end as u32);
+      t_loc.set(cx, "end", end)?;
+      obj.set(cx, "loc", t_loc)?;
+    }
     Definition::SchemaExtension {
       directives,
       operation_types,
@@ -1565,7 +1636,6 @@ fn transform_definition<'a>(
       t_loc.set(cx, "end", end)?;
       obj.set(cx, "loc", t_loc)?;
     }
-    _ => {} // TODO: remove this
   }
 
   Ok(obj)

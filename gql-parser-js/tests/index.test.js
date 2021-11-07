@@ -23,6 +23,16 @@ function transformNode(node) {
         name: transformNode(node.name),
         arguments: node.arguments.map(transformNode),
       });
+    case "DirectiveDefinition":
+      return jsonifyLocs({
+        ...node,
+        description: node.description
+          ? transformNode(node.description)
+          : node.description,
+        name: transformNode(node.name),
+        arguments: node.arguments.map(transformNode),
+        locations: node.locations.map(transformNode),
+      });
     case "Document":
       return jsonifyLocs({
         ...node,
